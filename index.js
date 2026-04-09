@@ -763,9 +763,9 @@ async function handleSearch(request, env) {
     });
   }
 
-  const prompt = `You are a NYC real estate assistant. Based on your knowledge of NYC real estate and the address provided, fill in as many fields as you can for: "${address}"
+  const prompt = `You are a NYC real estate research assistant. Search the web and find the CURRENT active listing for: "${address}"
 
-Use your knowledge of the building, neighborhood, and typical NYC real estate details. Leave fields null if you don't know them — the user will correct anything wrong.
+Find the listing on StreetEasy, Corcoran, Compass, Zillow, or any real estate site. Get the real current asking price — not historical sold prices.
 
 Return ONLY a raw JSON object with no markdown, no backticks, no explanation. The response must be valid JSON matching exactly this shape:
 
@@ -778,10 +778,12 @@ Return ONLY a raw JSON object with no markdown, no backticks, no explanation. Th
         'Content-Type': 'application/json',
         'x-api-key': env.ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'web-search-2025-03-05',
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-5',
         max_tokens: 2000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
         messages: [
           { role: 'user', content: prompt }
         ]

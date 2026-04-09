@@ -19,6 +19,8 @@ const APP_HTML = `<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="Apt.">
 <title>Apt.</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
 <style>
 :root {
   --bg: #0f0f0f; --surface: #1a1a1a; --surface2: #242424; --border: #2e2e2e;
@@ -180,16 +182,51 @@ select option { background: var(--surface2); }
 .size-row { display: flex; align-items: center; gap: 8px; flex: 1; }
 .size-row span { font-size: 11px; color: var(--muted); }
 .size-row input[type=range] { flex: 1; height: 4px; padding: 0; background: var(--border); border-radius: 2px; border: none; -webkit-appearance: auto; }
+
+#map-container { border-radius: 0; }
+.leaflet-popup-content-wrapper { border-radius: 12px !important; background: var(--surface) !important; color: var(--text) !important; }
+.leaflet-popup-content { margin: 12px 14px !important; font-family: 'Outfit', sans-serif !important; }
+.leaflet-popup-tip { background: var(--surface) !important; }
+.leaflet-container a.leaflet-popup-close-button { color: var(--muted) !important; }
+
+.cost-card { background: linear-gradient(135deg, rgba(232,197,71,0.06), rgba(78,203,126,0.06)); border: 1.5px solid rgba(232,197,71,0.15); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+.cost-title { font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 12px; }
+.cost-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+.cost-row.total { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 10px; font-weight: 600; font-size: 15px; }
+.cost-row .clbl { color: var(--muted); }
+.cost-row.total .cval { color: var(--accent); }
+.cost-assumptions { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
+
+.commute-card { background: linear-gradient(135deg, rgba(74,158,255,0.06), rgba(78,203,126,0.06)); border: 1.5px solid rgba(74,158,255,0.15); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+.commute-title { font-size: 13px; font-weight: 600; color: var(--accent2); margin-bottom: 10px; }
+.commute-stats { display: flex; gap: 10px; margin-top: 10px; }
+.commute-stat { flex: 1; text-align: center; background: var(--surface2); border-radius: 10px; padding: 12px 6px; }
+.commute-stat .csv { font-size: 18px; font-weight: 600; color: var(--accent2); }
+.commute-stat .csl { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.commute-detail { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.7; }
+.commute-btn { width: 100%; padding: 10px; background: var(--accent2); color: white; border: none; border-radius: 8px; font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 13px; cursor: pointer; }
+.commute-btn:disabled { opacity: 0.5; }
+
+.gear-btn { background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px; line-height: 1; }
+.settings-section { margin-bottom: 24px; }
+.settings-section-title { font-family: 'Playfair Display', serif; font-size: 16px; margin-bottom: 12px; }
+.data-btns { display: flex; gap: 10px; }
+.data-btns .btn { flex: 1; padding: 12px; font-size: 13px; }
+.data-stats { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.8; }
 </style>
 </head>
 <body>
 
 <div class="header">
   <div class="header-logo">Apt<span>.</span></div>
-  <div class="header-count" id="hdr-count">0 units</div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="header-count" id="hdr-count">0 units</div>
+    <button class="gear-btn" onclick="openSettings()">&#9881;</button>
+  </div>
 </div>
 <nav class="nav">
   <button class="nav-btn active" onclick="showView('list')">All Units</button>
+  <button class="nav-btn" onclick="showView('map')">Map</button>
   <button class="nav-btn" onclick="showView('compare')">Compare</button>
   <button class="nav-btn" onclick="showView('shortlist')">Shortlist</button>
 </nav>
@@ -331,6 +368,34 @@ select option { background: var(--surface2); }
   </div>
 </div>
 
+<div class="overlay" id="settings-overlay" onclick="maybeClose(event,'settings-overlay')">
+<div class="sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Settings</div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">Commute</div>
+    <div class="fg"><label>Work / School Address</label>
+      <input type="text" id="s-work-addr" placeholder="e.g. 350 5th Ave, NYC" onchange="saveWorkAddr()">
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px">Set this to see commute estimates on each apartment.</div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">Your Data</div>
+    <div class="data-btns">
+      <button class="btn btn-outline" onclick="exportData()">Export JSON</button>
+      <button class="btn btn-outline" onclick="document.getElementById('import-inp').click()">Import JSON</button>
+      <input type="file" id="import-inp" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+    <div class="data-stats" id="data-stats"></div>
+  </div>
+
+  <button class="btn btn-primary" onclick="closeSheet('settings-overlay')">Done</button>
+  <div style="height:20px"></div>
+</div>
+</div>
+
 <script>
 let apts = JSON.parse(localStorage.getItem('apts_v5') || '[]');
 let view = 'list', editId = null, pendingPhotos = [], rating = 0, filterSt = 'all', lastParsed = null;
@@ -342,14 +407,19 @@ function persist() {
 
 function showView(v) {
   view = v;
-  document.querySelectorAll('.nav-btn').forEach((b,i) => b.classList.toggle('active', ['list','compare','shortlist'][i] === v));
+  document.querySelectorAll('.nav-btn').forEach((b,i) => b.classList.toggle('active', ['list','map','compare','shortlist'][i] === v));
   document.getElementById('fab').style.display = v === 'list' ? 'flex' : 'none';
+  const sa = document.getElementById('scroll-area');
+  sa.style.overflow = v === 'map' ? 'hidden' : '';
+  sa.style.padding = v === 'map' ? '0' : '';
   render();
+  if (v === 'map') setTimeout(initMap, 60);
 }
 
 function render() {
   const el = document.getElementById('scroll-area');
   if (view === 'list') el.innerHTML = renderList();
+  else if (view === 'map') el.innerHTML = renderMap();
   else if (view === 'compare') el.innerHTML = renderCompare();
   else if (view === 'shortlist') el.innerHTML = renderShortlist();
   else if (view === 'detail') el.innerHTML = renderDetail();
@@ -418,6 +488,8 @@ function renderDetail() {
       \${a.floor?\`<div class="d-field"><div class="lbl">Floor</div><div class="val">\${a.floor}</div></div>\`:''}
       \${a.year?\`<div class="d-field"><div class="lbl">Year Built</div><div class="val">\${a.year}</div></div>\`:''}
     </div>
+    \${renderCostCard(a)}
+    \${renderCommuteCard(a)}
     \${coop?\`<div class="d-section">Co-op Details</div><div class="d-grid">
       \${a.maint?\`<div class="d-field"><div class="lbl">Maintenance</div><div class="val">\${a.maint}</div></div>\`:''}
       \${a.flip?\`<div class="d-field"><div class="lbl">Flip Tax</div><div class="val">\${a.flip}</div></div>\`:''}
@@ -745,6 +817,190 @@ function setRating(n){rating=n;document.querySelectorAll('.sp-btn').forEach((b,i
 function closeSheet(id){document.getElementById(id).classList.remove('open');}
 function maybeClose(e,id){if(e.target===document.getElementById(id))closeSheet(id);}
 
+// ── Map View ──
+function renderMap() {
+  if (!apts.length) return \`<div class="empty" style="padding-top:80px"><div class="empty-icon">&#x1F5FA;&#xFE0F;</div><h3>No apartments yet</h3><p>Add apartments to see them on the map.</p></div>\`;
+  return \`<div id="map-container" style="width:100%;height:100%"></div>\`;
+}
+
+function initMap() {
+  if (typeof L === 'undefined' || !document.getElementById('map-container')) return;
+  if (window._map) { try { window._map.remove(); } catch(e){} window._map = null; }
+  const map = L.map('map-container').setView([40.7580, -73.9855], 13);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
+  }).addTo(map);
+  window._map = map;
+  const cache = JSON.parse(localStorage.getItem('apt_geocache') || '{}');
+  const bounds = [];
+  let queue = apts.filter(a => a.name);
+  let i = 0;
+  function next() {
+    if (i >= queue.length) {
+      if (bounds.length > 1) map.fitBounds(bounds, {padding:[40,40]});
+      else if (bounds.length === 1) map.setView(bounds[0], 15);
+      return;
+    }
+    const a = queue[i]; i++;
+    if (cache[a.id]) {
+      placePin(map, a, cache[a.id], bounds);
+      next();
+    } else {
+      geocodeAddr(a.name).then(c => {
+        if (c) { cache[a.id] = c; localStorage.setItem('apt_geocache', JSON.stringify(cache)); placePin(map, a, c, bounds); }
+        setTimeout(next, 1100);
+      });
+    }
+  }
+  next();
+}
+
+function placePin(map, a, coords, bounds) {
+  const [lat, lng] = coords;
+  bounds.push([lat, lng]);
+  const sc = {active:'#4ecb7e',toured:'#4a9eff',applying:'#e8c547',pass:'#6b6560'}[a.status]||'#e8c547';
+  const marker = L.circleMarker([lat, lng], { radius: 10, fillColor: sc, color: '#fff', weight: 2, fillOpacity: 0.9 }).addTo(map);
+  const stars = [1,2,3,4,5].map(n => n <= a.rating ? '&#9733;' : '&#9734;').join('');
+  const meta = [a.beds?a.beds+'br':null, a.baths?a.baths+'ba':null, a.sqft?a.sqft+'sf':null].filter(Boolean).join(' &middot; ');
+  marker.bindPopup(\`<div style="min-width:150px"><div style="font-weight:600;font-size:14px;margin-bottom:3px">\${a.name}</div><div style="color:#e8c547;font-weight:600">\${a.price||'--'}</div><div style="font-size:12px;color:#888;margin-top:2px">\${meta}</div><div style="margin-top:4px;color:#e8c547">\${stars}</div><a href="javascript:void(0)" onclick="openDetail('\${a.id}')" style="display:block;margin-top:6px;color:#4a9eff;font-size:12px">View details &rarr;</a></div>\`);
+}
+
+async function geocodeAddr(address) {
+  try {
+    const q = encodeURIComponent(address + ', New York, NY');
+    const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + q + '&limit=1', {headers:{'User-Agent':'AptTracker/1.0'}});
+    const data = await res.json();
+    if (data.length) return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+  } catch(e) {}
+  return null;
+}
+
+// ── Cost Calculator ──
+function calcCosts(a) {
+  const price = parseFloat((a.price || '').replace(/[^0-9.]/g, ''));
+  if (!price || price < 100) return null;
+  if (a.btype === 'Rental') {
+    return { type:'rental', rent: Math.round(price), utils: 150, total: Math.round(price) + 150, annual: (Math.round(price) + 150) * 12 };
+  }
+  const downPct = parseFloat((a.down || '20').replace(/[^0-9.]/g, '')) / 100 || 0.2;
+  const downAmt = price * downPct;
+  const loan = price - downAmt;
+  const r = 0.0675 / 12;
+  const n = 360;
+  const mtg = loan > 0 ? Math.round(loan * (r * Math.pow(1+r,n)) / (Math.pow(1+r,n) - 1)) : 0;
+  const maint = Math.round(parseFloat((a.maint || '0').replace(/[^0-9.]/g, '')) || 0);
+  const tax = a.btype === 'Condo' ? Math.round(price * 0.012 / 12) : 0;
+  const ins = 100;
+  const total = mtg + maint + tax + ins;
+  return { type:'purchase', btype: a.btype||'Purchase', price, downPct: Math.round(downPct*100), downAmt: Math.round(downAmt), loan: Math.round(loan), mtg, maint, tax, ins, total, annual: total*12 };
+}
+
+function renderCostCard(a) {
+  const c = calcCosts(a);
+  if (!c) return '';
+  const fmt = n => '$' + n.toLocaleString();
+  if (c.type === 'rental') {
+    return '<div class="cost-card"><div class="cost-title">Monthly Cost Estimate</div>'
+      + '<div class="cost-row"><span class="clbl">Rent</span><span class="cval">' + fmt(c.rent) + '</span></div>'
+      + '<div class="cost-row"><span class="clbl">Utilities (est.)</span><span class="cval">' + fmt(c.utils) + '</span></div>'
+      + '<div class="cost-row total"><span class="clbl">Monthly Total</span><span class="cval">' + fmt(c.total) + '</span></div>'
+      + '<div class="cost-row"><span class="clbl">Annual</span><span class="cval">' + fmt(c.annual) + '</span></div>'
+      + '<div class="cost-assumptions">Utilities estimated at $150/mo</div></div>';
+  }
+  let html = '<div class="cost-card"><div class="cost-title">Monthly Cost Estimate</div>'
+    + '<div class="cost-row"><span class="clbl">Mortgage (30yr @ 6.75%)</span><span class="cval">' + fmt(c.mtg) + '</span></div>';
+  if (c.maint) html += '<div class="cost-row"><span class="clbl">Maintenance</span><span class="cval">' + fmt(c.maint) + '</span></div>';
+  if (c.tax) html += '<div class="cost-row"><span class="clbl">Property Tax (est.)</span><span class="cval">' + fmt(c.tax) + '</span></div>';
+  html += '<div class="cost-row"><span class="clbl">Insurance (est.)</span><span class="cval">' + fmt(c.ins) + '</span></div>'
+    + '<div class="cost-row total"><span class="clbl">Monthly Total</span><span class="cval">' + fmt(c.total) + '</span></div>'
+    + '<div class="cost-row"><span class="clbl">Annual</span><span class="cval">' + fmt(c.annual) + '</span></div>'
+    + '<div class="cost-assumptions">Down payment: ' + c.downPct + '% (' + fmt(c.downAmt) + ') &middot; Loan: ' + fmt(c.loan) + '</div></div>';
+  return html;
+}
+
+// ── Commute Calculator ──
+function getWorkAddr() { return localStorage.getItem('apt_work_addr') || ''; }
+function saveWorkAddr() { localStorage.setItem('apt_work_addr', document.getElementById('s-work-addr').value.trim()); }
+
+function renderCommuteCard(a) {
+  const work = getWorkAddr();
+  if (!work) return '<div class="commute-card"><div class="commute-title">Commute</div><div style="font-size:12px;color:var(--muted)">Set your work address in Settings (gear icon) to see commute estimates.</div></div>';
+  if (a.commute) {
+    const cm = a.commute;
+    return '<div class="commute-card"><div class="commute-title">Commute to Work</div>'
+      + '<div class="commute-stats">'
+      + (cm.transit_min ? '<div class="commute-stat"><div class="csv">' + cm.transit_min + '</div><div class="csl">min transit</div></div>' : '')
+      + (cm.walk_min ? '<div class="commute-stat"><div class="csv">' + cm.walk_min + '</div><div class="csl">min walk</div></div>' : '')
+      + (cm.distance ? '<div class="commute-stat"><div class="csv">' + cm.distance + '</div><div class="csl">distance</div></div>' : '')
+      + '</div>'
+      + (cm.summary ? '<div class="commute-detail">' + cm.summary + '</div>' : '')
+      + (cm.lines ? '<div class="commute-detail" style="margin-top:4px"><strong>Lines:</strong> ' + cm.lines + '</div>' : '')
+      + '<button class="commute-btn" style="margin-top:10px;background:var(--surface2);color:var(--text)" onclick="lookupCommute(\\'' + a.id + '\\')">Refresh</button>'
+      + '</div>';
+  }
+  return '<div class="commute-card"><div class="commute-title">Commute to Work</div>'
+    + '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">To: ' + work + '</div>'
+    + '<button class="commute-btn" id="commute-btn" onclick="lookupCommute(\\'' + a.id + '\\')">Calculate Commute</button>'
+    + '<div id="commute-status" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:16px"></div></div>';
+}
+
+async function lookupCommute(aptId) {
+  const a = apts.find(x => x.id === aptId); if (!a) return;
+  const work = getWorkAddr(); if (!work) { alert('Set your work address in Settings first.'); return; }
+  const btn = document.getElementById('commute-btn');
+  const status = document.getElementById('commute-status');
+  if (btn) { btn.disabled = true; btn.textContent = 'Searching...'; }
+  if (status) { status.innerHTML = '<span class="spin"></span> Looking up transit directions...'; status.style.color = 'var(--accent2)'; }
+  try {
+    const res = await fetch('/commute', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({origin: a.name, destination: work}) });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Lookup failed');
+    a.commute = json.data;
+    persist();
+    render();
+  } catch(e) {
+    if (status) { status.textContent = 'Could not find commute info: ' + e.message; status.style.color = 'var(--red)'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+  }
+}
+
+// ── Export / Import ──
+function exportData() {
+  const blob = new Blob([JSON.stringify(apts, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'apt-tracker-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importData(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!Array.isArray(data)) throw new Error('Invalid format');
+      const count = data.length;
+      if (!confirm('Import ' + count + ' apartment(s)? This will replace your current data.')) return;
+      apts = data;
+      persist(); render();
+      alert('Imported ' + count + ' apartments.');
+    } catch(err) { alert('Import failed: ' + err.message); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// ── Settings ──
+function openSettings() {
+  document.getElementById('s-work-addr').value = getWorkAddr();
+  const sz = new Blob([JSON.stringify(apts)]).size;
+  const kb = (sz / 1024).toFixed(1);
+  document.getElementById('data-stats').innerHTML = apts.length + ' apartment(s) &middot; ~' + kb + ' KB stored';
+  document.getElementById('settings-overlay').classList.add('open');
+}
+
 persist();render();
 </script>
 </body>
@@ -821,6 +1077,75 @@ Return ONLY a raw JSON object with no markdown, no backticks, no explanation. Th
   }
 }
 
+// ─── COMMUTE HANDLER ─────────────────────────────────────────────────────────
+async function handleCommute(request, env) {
+  let origin, destination;
+  try {
+    const body = await request.json();
+    origin = body.origin?.trim();
+    destination = body.destination?.trim();
+    if (!origin || !destination) throw new Error('Origin and destination required');
+  } catch(e) {
+    return new Response(JSON.stringify({ ok: false, error: e.message }), {
+      status: 400, headers: { ...CORS, 'Content-Type': 'application/json' }
+    });
+  }
+
+  const prompt = `You are a NYC transit expert. Find the best way to commute from "${origin}" to "${destination}" using public transit in NYC.
+
+Search for subway/bus directions between these two locations.
+
+Return ONLY a raw JSON object with no markdown, no backticks, no explanation:
+{"transit_min":null,"walk_min":null,"lines":"","summary":"","distance":""}
+
+- transit_min: estimated door-to-door time in minutes using subway/bus (number only)
+- walk_min: estimated walking time in minutes if walkable under 45 min, otherwise null (number only)
+- lines: subway lines or bus routes, e.g. "4/5/6 to Grand Central, then S to Times Sq"
+- summary: one sentence human-readable directions
+- distance: approximate distance like "2.3 mi"`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'web-search-2025-03-05',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`Anthropic ${response.status}: ${errBody}`);
+    }
+    const data = await response.json();
+    let raw = '';
+    for (const block of (data.content || [])) {
+      if (block.type === 'text') raw += block.text;
+    }
+    let depth = 0, start = -1, end = -1;
+    for (let i = 0; i < raw.length; i++) {
+      if (raw[i] === '{') { if (depth === 0) start = i; depth++; }
+      else if (raw[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (start === -1 || end === -1) throw new Error('Could not parse commute data');
+    const parsed = JSON.parse(raw.slice(start, end + 1));
+    return new Response(JSON.stringify({ ok: true, data: parsed }), {
+      headers: { ...CORS, 'Content-Type': 'application/json' }
+    });
+  } catch(e) {
+    return new Response(JSON.stringify({ ok: false, error: e.message }), {
+      status: 500, headers: { ...CORS, 'Content-Type': 'application/json' }
+    });
+  }
+}
+
 // ─── ROUTER ──────────────────────────────────────────────────────────────────
 export default {
   async fetch(request, env) {
@@ -833,6 +1158,11 @@ export default {
     // POST /search — address lookup
     if (request.method === 'POST' && url.pathname === '/search') {
       return handleSearch(request, env);
+    }
+
+    // POST /commute — transit directions
+    if (request.method === 'POST' && url.pathname === '/commute') {
+      return handleCommute(request, env);
     }
 
     // GET / — serve the app

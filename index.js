@@ -796,7 +796,7 @@ Return ONLY a raw JSON object with no markdown, no backticks, no explanation. Th
     }
     const data = await response.json();
 
-    let raw = '{';
+    let raw = '';
     for (const block of (data.content || [])) {
       if (block.type === 'text') raw += block.text;
     }

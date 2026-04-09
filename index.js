@@ -767,7 +767,7 @@ async function handleSearch(request, env) {
 
 Find the listing on StreetEasy, Corcoran, Compass, Zillow, or any real estate site. Get the real current asking price — not historical sold prices.
 
-Return ONLY a raw JSON object. No markdown, no backticks, no explanation. Start with { and end with }.
+Return ONLY a raw JSON object with no markdown, no backticks, no explanation. The response must be valid JSON matching exactly this shape:
 
 {"name":"${address}","price":null,"beds":null,"baths":null,"sqft":null,"floor":null,"neighborhood":null,"btype":null,"bldg":null,"maint":null,"flip":null,"down":null,"board":null,"sublet":null,"year":null,"url":null,"amenities":{"doorman":false,"elevator":false,"laundry":false,"outdoor":false,"gym":false,"parking":false,"pets":false,"storage":false,"roof":false,"bldry":false,"fp":false,"ac":false},"pros":null,"cons":null,"notes":null}`;
 
@@ -780,12 +780,11 @@ Return ONLY a raw JSON object. No markdown, no backticks, no explanation. Start 
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-opus-4-5',
         max_tokens: 2000,
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
         messages: [
-          { role: 'user', content: prompt },
-          { role: 'assistant', content: '{' }
+          { role: 'user', content: prompt }
         ]
       })
     });

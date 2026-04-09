@@ -778,9 +778,10 @@ Return ONLY a raw JSON object with no markdown, no backticks, no explanation. Th
         'Content-Type': 'application/json',
         'x-api-key': env.ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'web-search-2025-03-05',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-5',
+        model: 'claude-3-7-sonnet-20250219',
         max_tokens: 2000,
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
         messages: [
@@ -789,7 +790,10 @@ Return ONLY a raw JSON object with no markdown, no backticks, no explanation. Th
       })
     });
 
-    if (!response.ok) throw new Error(`Anthropic API ${response.status}`);
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`Anthropic ${response.status}: ${errBody}`);
+    }
     const data = await response.json();
 
     let raw = '{';

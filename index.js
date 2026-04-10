@@ -553,7 +553,7 @@ function renderShortlist() {
   return \`<div style="font-family:'Playfair Display',serif;font-size:18px;margin-bottom:16px">Your Top Picks</div>\`+
     top.map(a=>{
       const stars=[1,2,3,4,5].map(i=>\`<span class="star \${i<=a.rating?'on':''}">★</span>\`).join('');
-      const pros=a.pros?.split('\\n').filter(Boolean).slice(0,2).map(p=>\`✓ \${p}\`).join(' · ')||'';
+      const pros=(a.reactions||[]).filter(r=>r.type==='pro').slice(0,2).map(r=>\`✓ \${r.text}\`).join(' · ')||'';
       return \`<div class="apt-card" onclick="openDetail('\${a.id}')"><div class="card-body">
         <div class="card-top"><div><div class="card-name">\${a.name}</div><div class="card-meta">\${[a.neighborhood,a.price].filter(Boolean).join(' · ')}</div></div><div class="stars">\${stars}</div></div>
         \${pros?\`<div style="font-size:12px;color:var(--green);margin-top:8px">\${pros}</div>\`:''}
@@ -607,7 +607,10 @@ function applyData() {
   sv('f-sqft',p.sqft);sv('f-floor',p.floor);sv('f-hood',p.neighborhood);
   sv('f-maint',p.maint);sv('f-flip',p.flip);sv('f-down',p.down);
   sv('f-sublet',p.sublet);sv('f-year',p.year);sv('f-bldg',p.bldg);
-  sv('f-pros',p.pros);sv('f-cons',p.cons);sv('f-notes',p.notes);sv('f-url',p.url);
+  if (p.pros) p.pros.split('\n').filter(Boolean).forEach(t => { _formReactions.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'pro', photoIndex: null}); });
+  if (p.cons) p.cons.split('\n').filter(Boolean).forEach(t => { _formReactions.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'con', photoIndex: null}); });
+  renderFormReactions();
+  sv('f-notes',p.notes);sv('f-url',p.url);
   if(p.btype)document.getElementById('f-btype').value=p.btype;
   if(p.board)document.getElementById('f-board').value=p.board;
   if(p.amenities)Object.keys(p.amenities).forEach(k=>{const el=document.getElementById('a-'+k);if(el)el.checked=!!p.amenities[k];});

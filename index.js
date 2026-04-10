@@ -714,8 +714,8 @@ function applyData() {
   sv('f-sqft',p.sqft);sv('f-floor',p.floor);sv('f-hood',p.neighborhood);
   sv('f-maint',p.maint);sv('f-flip',p.flip);sv('f-down',p.down);
   sv('f-sublet',p.sublet);sv('f-year',p.year);sv('f-bldg',p.bldg);
-  if (p.pros) p.pros.split('\n').filter(Boolean).forEach(t => { _formReactions.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'pro', photoIndex: null}); });
-  if (p.cons) p.cons.split('\n').filter(Boolean).forEach(t => { _formReactions.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'con', photoIndex: null}); });
+  if (p.pros) p.pros.split('\\n').filter(Boolean).forEach(t => { _formReactions.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'pro', photoIndex: null}); });
+  if (p.cons) p.cons.split('\\n').filter(Boolean).forEach(t => { _formReactions.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'con', photoIndex: null}); });
   renderFormReactions();
   sv('f-notes',p.notes);sv('f-url',p.url);
   if(p.btype)document.getElementById('f-btype').value=p.btype;
@@ -1043,8 +1043,8 @@ fetch('/apts').then(r=>r.json()).then(data=>{
     if (STATUS_MAP[a.status]) { updated.status = STATUS_MAP[a.status]; migrated = true; }
     if (!updated.reactions && (a.pros || a.cons)) {
       const r = [];
-      if (a.pros) a.pros.split('\n').filter(Boolean).forEach(t => r.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'pro', photoIndex: null}));
-      if (a.cons) a.cons.split('\n').filter(Boolean).forEach(t => r.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'con', photoIndex: null}));
+      if (a.pros) a.pros.split('\\n').filter(Boolean).forEach(t => r.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'pro', photoIndex: null}));
+      if (a.cons) a.cons.split('\\n').filter(Boolean).forEach(t => r.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'con', photoIndex: null}));
       updated.reactions = r; migrated = true;
     }
     if (!updated.reactions) updated.reactions = [];

@@ -332,12 +332,12 @@ select option { background: var(--surface2); }
 </div>
 
 <script>
-let apts = JSON.parse(localStorage.getItem('apts_v5') || '[]');
+let apts = [];
 let view = 'list', editId = null, pendingPhotos = [], rating = 0, filterSt = 'all', lastParsed = null;
 
 function persist() {
-  localStorage.setItem('apts_v5', JSON.stringify(apts));
   document.getElementById('hdr-count').textContent = apts.length + ' unit' + (apts.length !== 1 ? 's' : '');
+  fetch('/apts', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(apts) });
 }
 
 function showView(v) {
@@ -745,7 +745,7 @@ function setRating(n){rating=n;document.querySelectorAll('.sp-btn').forEach((b,i
 function closeSheet(id){document.getElementById(id).classList.remove('open');}
 function maybeClose(e,id){if(e.target===document.getElementById(id))closeSheet(id);}
 
-persist();render();
+fetch('/apts').then(r=>r.json()).then(data=>{ apts=Array.isArray(data)?data:[]; persist(); render(); }).catch(()=>{ render(); });
 </script>
 </body>
 </html>`;
@@ -821,6 +821,22 @@ Return ONLY a raw JSON object with no markdown, no backticks, no explanation. Th
   }
 }
 
+// ─── APARTMENTS KV HANDLERS ──────────────────────────────────────────────────
+async function handleGetApts(env) {
+  const data = await env.APTS_KV.get('apts_v5');
+  return new Response(data || '[]', {
+    headers: { ...CORS, 'Content-Type': 'application/json' }
+  });
+}
+
+async function handleSaveApts(request, env) {
+  const body = await request.text();
+  await env.APTS_KV.put('apts_v5', body);
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: { ...CORS, 'Content-Type': 'application/json' }
+  });
+}
+
 // ─── ROUTER ──────────────────────────────────────────────────────────────────
 export default {
   async fetch(request, env) {
@@ -828,6 +844,16 @@ export default {
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: CORS });
+    }
+
+    // GET /apts — load apartments from KV
+    if (request.method === 'GET' && url.pathname === '/apts') {
+      return handleGetApts(env);
+    }
+
+    // POST /apts — save apartments to KV
+    if (request.method === 'POST' && url.pathname === '/apts') {
+      return handleSaveApts(request, env);
     }
 
     // POST /search — address lookup

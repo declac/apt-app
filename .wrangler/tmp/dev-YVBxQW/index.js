@@ -265,7 +265,8 @@ select option { background: var(--surface2); }
 /* Kanban board */
 .board-wrap { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 20px; height: calc(100dvh - 120px); -webkit-overflow-scrolling: touch; }
 .board-wrap::-webkit-scrollbar { display: none; }
-.board-col { flex-shrink: 0; width: 220px; display: flex; flex-direction: column; background: var(--surface2); border-radius: 14px; overflow: hidden; }
+.board-col { flex-shrink: 0; width: 220px; display: flex; flex-direction: column; background: var(--surface2); border-radius: 14px; overflow: hidden; transition: box-shadow 0.15s; }
+.board-col.drag-over { box-shadow: 0 0 0 2px var(--accent); }
 .board-col-hd { padding: 12px 14px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
 .board-col-count { background: var(--surface); border-radius: 20px; padding: 2px 8px; font-size: 11px; color: var(--muted); font-weight: 600; }
 .board-col-cards { flex: 1; overflow-y: auto; padding: 10px 8px; display: flex; flex-direction: column; gap: 8px; -webkit-overflow-scrolling: touch; }
@@ -275,13 +276,13 @@ select option { background: var(--surface2); }
 .board-card.drag-over { border-color: var(--accent); background: var(--surface2); }
 .board-card-name { font-size: 13px; font-weight: 600; line-height: 1.3; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board-card-price { font-size: 12px; color: var(--accent); font-weight: 500; }
-.board-card-date { font-size: 11px; color: var(--muted); margin-top: 4px; }
-/* Move sheet */
+.board-card-date { font-size: 11px; color: var(--muted); margin-top: 4px; }/* Move sheet */
 .move-sheet-option { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
 .move-sheet-option:last-child { border-bottom: none; }
 .move-sheet-option input[type=radio] { width: 18px; height: 18px; accent-color: var(--accent); flex-shrink: 0; }
 .move-date-row { padding: 8px 0 4px 30px; }
 </style>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"><\/script>
 </head>
 <body>
 
@@ -290,6 +291,8 @@ select option { background: var(--surface2); }
   <div style="display:flex;align-items:center;gap:6px">
     <div class="header-count" id="hdr-count">0 units</div>
     <button class="tbl-toggle" id="tbl-tog" onclick="toggleTableView()">\u2630</button>
+    <button class="tbl-toggle" onclick="document.getElementById('import-inp').click()" title="Import Excel">\u2191 Import</button>
+    <input type="file" id="import-inp" accept=".xlsx,.xls" style="display:none" onchange="handleImport(event)">
   </div>
 </div>
 <nav class="nav">
@@ -485,10 +488,23 @@ select option { background: var(--surface2); }
   </div>
 </div>
 
+<!-- Import preview modal -->
+<div class="overlay" id="import-overlay" onclick="maybeClose(event,'import-overlay')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" style="font-size:17px">Import Listings</div>
+    <div id="import-preview-msg" style="font-size:14px;line-height:1.8;margin-bottom:16px;color:var(--muted)"></div>
+    <br>
+    <button class="btn btn-primary" id="import-confirm-btn" onclick="confirmImport()">Import</button>
+    <button class="btn btn-outline" onclick="closeSheet('import-overlay')">Cancel</button>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
 <script>
 let apts = [];
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-let view = 'list', editId = null, pendingPhotos = [], rating = 0, filterSt = 'all', lastParsed = null;
+let view = 'list', prevView = 'list', editId = null, pendingPhotos = [], rating = 0, filterSt = 'all', lastParsed = null;
 let tableView = false, tableSort = { col: null, dir: 'asc' };
 
 function persist() {
@@ -607,7 +623,7 @@ function sortTable(col) {
 }
 
 function openDetail(id) {
-  view = 'detail'; window._did = id;
+  prevView = view; view = 'detail'; window._did = id;
   document.getElementById('fab').style.display = 'none';
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   render();
@@ -638,7 +654,7 @@ function renderDetail() {
       \${r.photoIndex!=null && a.photos?.[r.photoIndex] ? \`<img class="reaction-thumb" src="\${a.photos[r.photoIndex].annotation||a.photos[r.photoIndex].data}" onclick="openPhotoViewer('\${a.id}',\${r.photoIndex})">\` : ''}
     </div>\`).join('') || \`<div class="reactions-empty">Tap a photo above to add cons</div>\`;
   return \`
-    <button class="back-btn" onclick="showView('list')">\u2190 All Units</button>
+    <button class="back-btn" onclick="showView(prevView||'list')">\u2190 Back</button>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:4px">
       <h2 style="font-family:'Playfair Display',serif;font-size:21px;line-height:1.2;flex:1">\${a.name}</h2>
       <span class="status-pill \${sc}">\${a.status}</span>
@@ -672,7 +688,7 @@ function renderDetail() {
     <br>
     <button class="btn btn-primary" onclick="openEdit('\${a.id}')">Edit</button>
     <button class="btn btn-danger" onclick="delApt('\${a.id}')">Delete</button>
-    <button class="btn btn-outline" onclick="showView('list')">Back</button>
+    <button class="btn btn-outline" onclick="showView(prevView||'list')">Back</button>
     <div style="height:20px"></div>\`;
 }
 
@@ -727,7 +743,6 @@ function renderShortlist() {
 }
 
 function renderBoard() {
-  const isTouch = 'ontouchstart' in window;
   const COLS = [
     { status: 'prospecting',    label: 'Prospecting',    color: 'var(--accent2)' },
     { status: 'scheduled',      label: 'Scheduled',      color: '#7c3aed' },
@@ -739,16 +754,14 @@ function renderBoard() {
     const cards = apts.filter(a => a.status === col.status);
     const cardHtml = cards.map(a => {
       const dateStr = a.showDate ? \`\u{1F4C5} \${new Date(a.showDate+\`T12:00:00\`).toLocaleDateString('en-US',{month:'short',day:'numeric'})}\` : '';
-      const drag = isTouch ? '' : \`draggable="true" ondragstart="boardDragStart(event,'\${a.id}')" ondragend="boardDragEnd(event)"\`;
-      const tap = isTouch ? \`onclick="openMoveSheet('\${a.id}')"\` : \`onclick="openDetail('\${a.id}')"\`;
-      return \`<div class="board-card" \${drag} \${tap} data-id="\${a.id}">
+      return \`<div class="board-card" draggable="true" ondragstart="boardDragStart(event,'\${a.id}')" ondragend="boardDragEnd(event)" ontouchstart="boardTouchStart(event,'\${a.id}')" onclick="openDetail('\${a.id}')" data-id="\${a.id}">
         <div class="board-card-name">\${a.name}</div>
         <div class="board-card-price">\${a.price||'\u2014'}</div>
         \${dateStr ? \`<div class="board-card-date">\${dateStr}</div>\` : ''}
       </div>\`;
     }).join('') || \`<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px">Empty</div>\`;
-    const dropHandlers = isTouch ? '' : \`ondragover="event.preventDefault()" ondrop="boardDrop(event,'\${col.status}')"\`;
-    return \`<div class="board-col" \${dropHandlers}>
+    const dropHandlers = \`ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="boardDrop(event,'\${col.status}')"\`;
+    return \`<div class="board-col" data-status="\${col.status}" \${dropHandlers}>
       <div class="board-col-hd" style="color:\${col.color}">
         \${col.label}
         <span class="board-col-count">\${cards.length}</span>
@@ -759,19 +772,80 @@ function renderBoard() {
   return \`<div class="board-wrap">\${cols}</div>\`;
 }
 
-// \u2500\u2500 Board drag (desktop) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// \u2500\u2500 Board drag (desktop mouse) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 let _dragId = null;
 function boardDragStart(e, id) { _dragId = id; e.target.style.opacity = '0.5'; }
 function boardDragEnd(e) { e.target.style.opacity = '1'; _dragId = null; }
 function boardDrop(e, status) {
   e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
   if (!_dragId) return;
   const a = apts.find(x => x.id === _dragId); if (!a) return;
-  a.status = status;
-  persist();
-  render();
+  a.status = status; persist(); render();
 }
-function initBoardDrag() {}
+
+// \u2500\u2500 Board touch drag (mobile) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+let _tDragId = null, _tGhost = null, _tCard = null, _tDragging = false, _tSx = 0, _tSy = 0;
+let _boardListenersAdded = false;
+
+function boardTouchStart(e, id) {
+  _tDragId = id; _tCard = e.currentTarget; _tDragging = false; _tGhost = null;
+  const t = e.touches[0]; _tSx = t.clientX; _tSy = t.clientY;
+}
+
+function _boardTouchMove(e) {
+  if (!_tDragId) return;
+  const t = e.touches[0];
+  const dx = t.clientX - _tSx, dy = t.clientY - _tSy;
+  if (!_tDragging && Math.sqrt(dx*dx + dy*dy) > 10) {
+    _tDragging = true;
+    const r = _tCard.getBoundingClientRect();
+    _tGhost = _tCard.cloneNode(true);
+    _tGhost.style.cssText = \`position:fixed;top:\${r.top}px;left:\${r.left}px;width:\${r.width}px;opacity:0.85;pointer-events:none;z-index:1000;transform:scale(1.04);box-shadow:0 8px 24px rgba(0,0,0,0.18);border-radius:10px;transition:none\`;
+    _tGhost._ox = t.clientX - r.left; _tGhost._oy = t.clientY - r.top;
+    document.body.appendChild(_tGhost);
+    _tCard.style.opacity = '0.3';
+  }
+  if (_tDragging && _tGhost) {
+    e.preventDefault();
+    _tGhost.style.left = (t.clientX - _tGhost._ox) + 'px';
+    _tGhost.style.top  = (t.clientY - _tGhost._oy) + 'px';
+    _tGhost.style.display = 'none';
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    _tGhost.style.display = '';
+    const col = el?.closest('.board-col');
+    document.querySelectorAll('.board-col').forEach(c => c.classList.toggle('drag-over', c === col));
+  }
+}
+
+function _boardTouchEnd(e) {
+  if (!_tDragId) return;
+  if (_tDragging && _tGhost) {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    _tGhost.style.display = 'none';
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    _tGhost.style.display = '';
+    const col = el?.closest('.board-col');
+    _tGhost.remove(); _tGhost = null;
+    document.querySelectorAll('.board-col').forEach(c => c.classList.remove('drag-over'));
+    if (_tCard) _tCard.style.opacity = '';
+    if (col) {
+      const status = col.dataset.status;
+      const a = apts.find(x => x.id === _tDragId);
+      if (a && status) { a.status = status; persist(); }
+    }
+    render();
+  }
+  _tDragId = null; _tDragging = false; _tCard = null;
+}
+
+function initBoardDrag() {
+  if (_boardListenersAdded) return;
+  _boardListenersAdded = true;
+  document.addEventListener('touchmove', _boardTouchMove, {passive: false});
+  document.addEventListener('touchend', _boardTouchEnd);
+}
 
 // \u2500\u2500 Move sheet (mobile) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 let _moveAptId = null;
@@ -962,7 +1036,7 @@ function saveApt() {
 
 function delApt(id) {
   if(!confirm('Delete this apartment?'))return;
-  apts=apts.filter(a=>a.id!==id);persist();showView('list');
+  apts=apts.filter(a=>a.id!==id);persist();showView(prevView||'list');
 }
 
 function handlePhotos(e) {
@@ -1198,6 +1272,88 @@ fetch('/apts').then(r=>r.json()).then(data=>{
   });
   if (migrated) persist();
   render();
+
+// \u2500\u2500 Excel import \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+let _importPending = [];
+
+function handleImport(e) {
+  const file = e.target.files[0]; if (!file) return;
+  e.target.value = '';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+      _importPending = [];
+      const existing = new Set(apts.map(a => (a.name||'').toLowerCase().trim()));
+
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const addr = (r[3]||'').toString().trim();
+        const unit = (r[4]||'').toString().trim();
+        if (!addr) continue;
+        const name = unit ? \`\${addr} \${unit}\` : addr;
+        if (existing.has(name.toLowerCase())) continue;
+
+        // Extract hyperlink URL from SheetJS cell
+        const cellRef = XLSX.utils.encode_cell({ r: i, c: 6 });
+        const cell = ws[cellRef];
+        const url = cell?.l?.Target || null;
+
+        // Format price
+        const rawPrice = r[8];
+        const price = rawPrice ? '$' + Math.round(parseFloat(rawPrice)).toLocaleString() : null;
+
+        // Format date
+        let showDate = null;
+        if (r[1]) {
+          const d = new Date(r[1]);
+          if (!isNaN(d.getTime())) showDate = d.toISOString().slice(0, 10);
+        }
+
+        _importPending.push({
+          id: String(Date.now() + i),
+          name,
+          neighborhood: (r[2]||'').toString().trim() || null,
+          price,
+          maint: r[9] != null ? String(r[9]).trim() : null,
+          retax: r[10] != null ? String(r[10]).trim() : null,
+          totalMonthly: r[11] != null ? '$' + parseFloat(r[11]).toLocaleString() : null,
+          btype: (r[12]||'').toString().trim() || null,
+          notes: r[13] ? \`Service: \${String(r[13]).trim()}\` : null,
+          bldg: (r[14]||'').toString().trim() || null,
+          url,
+          showDate,
+          status: showDate ? 'scheduled' : 'prospecting',
+          rating: 0,
+          amenities: {doorman:false,elevator:false,laundry:false,outdoor:false,gym:false,parking:false,pets:false,storage:false,roof:false,bldry:false,fp:false,ac:false},
+          reactions: [],
+          photos: [],
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      const skipped = rows.length - 1 - _importPending.length;
+      document.getElementById('import-preview-msg').innerHTML =
+        \`Found <strong>\${_importPending.length}</strong> new listing\${_importPending.length !== 1 ? 's' : ''} to import.<br>\` +
+        (skipped > 0 ? \`<span style="color:var(--muted)">\${skipped} already exist or are empty \u2014 will be skipped.</span>\` : '');
+      document.getElementById('import-overlay').classList.add('open');
+    } catch(err) {
+      alert('Could not read file: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function confirmImport() {
+  apts = [...apts, ..._importPending];
+  _importPending = [];
+  persist();
+  closeSheet('import-overlay');
+  showView('list');
+}
+
 }).catch(()=>{ render(); });
 <\/script>
 </body>

@@ -322,8 +322,14 @@ select option { background: var(--surface2); }
   </div>
 
   <p class="section-hd">Notes</p>
-  <div class="fg"><label>Pros (one per line)</label><textarea id="f-pros" placeholder="Prewar charm&#10;Close to Central Park&#10;Gut renovated"></textarea></div>
-  <div class="fg"><label>Cons (one per line)</label><textarea id="f-cons" placeholder="No doorman&#10;30% down required"></textarea></div>
+  <div class="fg">
+    <label>Pros &amp; Cons</label>
+    <div id="f-reactions-list"></div>
+    <div class="add-reaction-btns">
+      <button type="button" class="add-reaction-btn pro" onclick="addFormReaction('pro')">+ Pro</button>
+      <button type="button" class="add-reaction-btn con" onclick="addFormReaction('con')">+ Con</button>
+    </div>
+  </div>
   <div class="fg"><label>Notes</label><textarea id="f-notes" placeholder="Broker name, open house, gut feeling..."></textarea></div>
   <div class="fg"><label>Listing URL</label><input type="text" id="f-url" placeholder="https://streeteasy.com/..."></div>
 
@@ -457,14 +463,25 @@ function renderDetail() {
   const stars = [1,2,3,4,5].map(i=>\`<span class="star \${i<=a.rating?'on':''}">★</span>\`).join('');
   const sc = {active:'s-active',toured:'s-toured',applying:'s-applying',pass:'s-pass'}[a.status]||'s-active';
   const photos = a.photos?.length
-    ? \`<div class="detail-photos">\${a.photos.map(p=>\`<div class="d-photo"><img src="\${p.annotation||p.data}">\${p.note?\`<div class="d-photo-lbl">\${p.note}</div>\`:''}</div>\`).join('')}</div>\`
-    : \`<div style="background:var(--surface2);border-radius:12px;height:80px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;margin-bottom:16px">No photos yet</div>\`;
+    ? \`<div class="detail-photos">\${a.photos.map((p,i)=>\`<div class="d-photo" onclick="openPhotoViewer('\${a.id}',\${i})" style="cursor:pointer"><img src="\${p.annotation||p.data}">\${p.note?\`<div class="d-photo-lbl">\${esc(p.note)}</div>\`:''}</div>\`).join('')}</div>\`
+    : \`<div style="background:var(--surface2);border-radius:12px;height:80px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;margin-bottom:16px">No photos yet — add them via Edit</div>\`;
   const am = a.amenities||{};
   const amMap = {doorman:'Doorman',elevator:'Elevator',laundry:'W/D In-Unit',outdoor:'Outdoor',gym:'Gym',parking:'Parking',pets:'Pets OK',storage:'Storage',roof:'Roof Deck',bldry:'Laundry in Bldg',fp:'Fireplace',ac:'Central A/C'};
   const chips = Object.keys(amMap).filter(k=>am[k]).map(k=>\`<span class="am-chip">\${amMap[k]}</span>\`).join('');
   const coop = [a.maint,a.flip,a.down,a.board,a.sublet,a.year].some(Boolean);
-  const pros = a.pros ? a.pros.split('\\n').filter(Boolean).map(p=>\`<div class="pc-item">✓ \${p}</div>\`).join('') : \`<div class="pc-item" style="color:var(--muted)">—</div>\`;
-  const cons = a.cons ? a.cons.split('\\n').filter(Boolean).map(p=>\`<div class="pc-item">✗ \${p}</div>\`).join('') : \`<div class="pc-item" style="color:var(--muted)">—</div>\`;
+  const reactions = a.reactions || [];
+  const prosHtml = reactions.filter(r=>r.type==='pro').map(r=>\`
+    <div class="reaction-item">
+      <span class="reaction-badge pro">PRO</span>
+      <span class="reaction-text">\${esc(r.text)}</span>
+      \${r.photoIndex!=null && a.photos?.[r.photoIndex] ? \`<img class="reaction-thumb" src="\${a.photos[r.photoIndex].annotation||a.photos[r.photoIndex].data}" onclick="openPhotoViewer('\${a.id}',\${r.photoIndex})">\` : ''}
+    </div>\`).join('') || \`<div class="reactions-empty">Tap a photo above to add pros</div>\`;
+  const consHtml = reactions.filter(r=>r.type==='con').map(r=>\`
+    <div class="reaction-item">
+      <span class="reaction-badge con">CON</span>
+      <span class="reaction-text">\${esc(r.text)}</span>
+      \${r.photoIndex!=null && a.photos?.[r.photoIndex] ? \`<img class="reaction-thumb" src="\${a.photos[r.photoIndex].annotation||a.photos[r.photoIndex].data}" onclick="openPhotoViewer('\${a.id}',\${r.photoIndex})">\` : ''}
+    </div>\`).join('') || \`<div class="reactions-empty">Tap a photo above to add cons</div>\`;
   return \`
     <button class="back-btn" onclick="showView('list')">← All Units</button>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:4px">
@@ -491,7 +508,7 @@ function renderDetail() {
     </div>\`:''}
     \${chips?\`<div class="d-section">Amenities</div><div class="am-chips">\${chips}</div>\`:''}
     <div class="d-section">Pros & Cons</div>
-    <div class="pros-cons"><div class="pros-box"><div class="pc-lbl">✓ PROS</div>\${pros}</div><div class="cons-box"><div class="pc-lbl">✗ CONS</div>\${cons}</div></div>
+    <div class="reactions-list">\${prosHtml}\${consHtml}</div>
     \${a.notes?\`<div class="d-section">Notes</div><div style="font-size:14px;line-height:1.8;margin-bottom:16px;white-space:pre-wrap">\${a.notes}</div>\`:''}
     \${a.url?\`<div class="d-section">Listing</div><a href="\${a.url}" target="_blank" style="color:var(--accent2);font-size:13px;word-break:break-all;display:block;margin-bottom:16px">\${a.url}</a>\`:''}
     <br>
@@ -617,13 +634,15 @@ function openEdit(id) {
 }
 
 function clearForm() {
-  ['f-name','f-price','f-beds','f-baths','f-sqft','f-floor','f-hood','f-maint','f-flip','f-down','f-sublet','f-year','f-bldg','f-pros','f-cons','f-notes','f-url'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-name','f-price','f-beds','f-baths','f-sqft','f-floor','f-hood','f-maint','f-flip','f-down','f-sublet','f-year','f-bldg','f-notes','f-url'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['f-status','f-board','f-btype'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});
   ['doorman','elevator','laundry','outdoor','gym','parking','pets','storage','roof','bldry','fp','ac'].forEach(k=>{const el=document.getElementById('a-'+k);if(el)el.checked=false;});
   document.getElementById('ai-addr').value='';
   document.getElementById('ai-status').textContent='';
   document.getElementById('ai-preview').style.display='none';
   setRating(0);renderPhotoGrid();
+  _formReactions = [];
+  renderFormReactions();
 }
 
 function fillForm(a) {
@@ -632,12 +651,14 @@ function fillForm(a) {
   sv('f-sqft',a.sqft);sv('f-floor',a.floor);sv('f-hood',a.neighborhood);
   sv('f-maint',a.maint);sv('f-flip',a.flip);sv('f-down',a.down);
   sv('f-sublet',a.sublet);sv('f-year',a.year);sv('f-bldg',a.bldg);
-  sv('f-pros',a.pros);sv('f-cons',a.cons);sv('f-notes',a.notes);sv('f-url',a.url);
+  sv('f-notes',a.notes);sv('f-url',a.url);
   document.getElementById('f-status').value=a.status||'active';
   document.getElementById('f-board').value=a.board||'';
   document.getElementById('f-btype').value=a.btype||'';
   ['doorman','elevator','laundry','outdoor','gym','parking','pets','storage','roof','bldry','fp','ac'].forEach(k=>{const el=document.getElementById('a-'+k);if(el)el.checked=!!(a.amenities&&a.amenities[k]);});
   setRating(a.rating||0);renderPhotoGrid();
+  _formReactions = JSON.parse(JSON.stringify(a.reactions || []));
+  renderFormReactions();
 }
 
 function saveApt() {
@@ -663,8 +684,7 @@ function saveApt() {
     year:document.getElementById('f-year').value.trim(),
     bldg:document.getElementById('f-bldg').value.trim(),
     amenities,
-    pros:document.getElementById('f-pros').value.trim(),
-    cons:document.getElementById('f-cons').value.trim(),
+    reactions: _formReactions.filter(r => r.text.trim()),
     notes:document.getElementById('f-notes').value.trim(),
     url:document.getElementById('f-url').value.trim(),
     photos:JSON.parse(JSON.stringify(pendingPhotos)),
@@ -865,6 +885,36 @@ function deleteReaction(reactionId) {
   persist();
   renderViewerReactions();
   if (view === 'detail') render();
+}
+
+// ── Edit form reactions ───────────────────────────────────────────────────────
+let _formReactions = [];
+
+function renderFormReactions() {
+  const el = document.getElementById('f-reactions-list'); if (!el) return;
+  el.innerHTML = _formReactions.map((r, i) => `
+    <div class="reaction-editor-item">
+      <button type="button" class="reaction-type-tog ${r.type}" onclick="toggleFormReactionType(${i})">${r.type === 'pro' ? '✓ PRO' : '✗ CON'}</button>
+      <input class="reaction-editor-text" value="${esc(r.text)}" placeholder="Note..." oninput="_formReactions[${i}].text=this.value">
+      <button type="button" class="reaction-del" onclick="removeFormReaction(${i})">×</button>
+    </div>`).join('') || '<div class="reactions-empty" style="padding:8px 0">No reactions yet — add a pro or con below</div>';
+}
+
+function addFormReaction(type) {
+  _formReactions.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: '', type, photoIndex: null });
+  renderFormReactions();
+  const inputs = document.querySelectorAll('.reaction-editor-text');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+
+function toggleFormReactionType(i) {
+  _formReactions[i].type = _formReactions[i].type === 'pro' ? 'con' : 'pro';
+  renderFormReactions();
+}
+
+function removeFormReaction(i) {
+  _formReactions.splice(i, 1);
+  renderFormReactions();
 }
 
 fetch('/apts').then(r=>r.json()).then(data=>{

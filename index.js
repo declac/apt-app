@@ -486,12 +486,15 @@ let view = 'list', prevView = 'list', editId = null, pendingPhotos = [], rating 
 let tableView = false, tableSort = { col: null, dir: 'asc' };
 let boardSort = 'name';
 
+let _dataLoaded = false;
 function persist() {
   document.getElementById('hdr-count').textContent = apts.length + ' unit' + (apts.length !== 1 ? 's' : '');
+  if (!_dataLoaded) return;
   const body = JSON.stringify(apts);
   try { fetch('/apts', { method: 'POST', headers: {'Content-Type':'application/json'}, body, keepalive: true }); } catch(e) {}
 }
 window.addEventListener('beforeunload', () => {
+  if (!_dataLoaded) return;
   try { navigator.sendBeacon('/apts', new Blob([JSON.stringify(apts)], {type:'application/json'})); } catch(e) {}
 });
 
@@ -1386,9 +1389,10 @@ fetch('/apts').then(r=>r.json()).then(data=>{
     if (!updated.reactions) updated.reactions = [];
     return updated;
   });
+  _dataLoaded = true;
   if (migrated) persist();
   render();
-}).catch(()=>{ render(); });
+}).catch(()=>{ _dataLoaded = true; render(); });
 </script>
 </body>
 </html>`;

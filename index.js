@@ -531,7 +531,7 @@ function renderCompare() {
   const rxSummary = (apt, type) => {
     const items = (apt.reactions || []).filter(r => r.type === type).slice(0, 4);
     if (!items.length) return '—';
-    return items.map(r => `<div style="font-size:12px;margin-bottom:3px">${type==='pro'?'✓':'✗'} ${esc(r.text)}${r.photoIndex!=null?' 🖼':''}</div>`).join('');
+    return items.map(r => \`<div style="font-size:12px;margin-bottom:3px">\${type==='pro'?'✓':'✗'} \${esc(r.text)}\${r.photoIndex!=null?' 🖼':''}</div>\`).join('');
   };
   const rows=[
     ['Price',\`<span class="\${pa&&pb&&pa<pb?'cmp-win':''}">\${a.price||'—'}</span>\`,\`<span class="\${pa&&pb&&pb<pa?'cmp-win':''}">\${b.price||'—'}</span>\`],
@@ -862,10 +862,10 @@ function renderViewerReactions() {
   const a = apts.find(x => x.id === _pvAptId); if (!a) return;
   const chips = (a.reactions || [])
     .filter(r => r.photoIndex === _pvPhotoIndex)
-    .map(r => `<span class="viewer-reaction-chip ${r.type === 'pro' ? 'pro' : 'con'}">
-      ${r.type === 'pro' ? '✓' : '✗'} ${esc(r.text)}
-      <button onclick="deleteReaction('${esc(r.id)}')">×</button>
-    </span>`).join('');
+    .map(r => \`<span class="viewer-reaction-chip \${r.type === 'pro' ? 'pro' : 'con'}">
+      \${r.type === 'pro' ? '✓' : '✗'} \${esc(r.text)}
+      <button onclick="deleteReaction('\${esc(r.id)}')">×</button>
+    </span>\`).join('');
   document.getElementById('pv-reactions').innerHTML = chips || '';
 }
 
@@ -902,12 +902,12 @@ let _formReactions = [];
 
 function renderFormReactions() {
   const el = document.getElementById('f-reactions-list'); if (!el) return;
-  el.innerHTML = _formReactions.map((r, i) => `
+  el.innerHTML = _formReactions.map((r, i) => \`
     <div class="reaction-editor-item">
-      <button type="button" class="reaction-type-tog ${r.type}" onclick="toggleFormReactionType(${i})">${r.type === 'pro' ? '✓ PRO' : '✗ CON'}</button>
-      <input class="reaction-editor-text" value="${esc(r.text)}" placeholder="Note..." oninput="_formReactions[${i}].text=this.value">
-      <button type="button" class="reaction-del" onclick="removeFormReaction(${i})">×</button>
-    </div>`).join('') || '<div class="reactions-empty" style="padding:8px 0">No reactions yet — add a pro or con below</div>';
+      <button type="button" class="reaction-type-tog \${r.type}" onclick="toggleFormReactionType(\${i})">\${r.type === 'pro' ? '✓ PRO' : '✗ CON'}</button>
+      <input class="reaction-editor-text" value="\${esc(r.text)}" placeholder="Note..." oninput="_formReactions[\${i}].text=this.value">
+      <button type="button" class="reaction-del" onclick="removeFormReaction(\${i})">×</button>
+    </div>\`).join('') || '<div class="reactions-empty" style="padding:8px 0">No reactions yet — add a pro or con below</div>';
 }
 
 function addFormReaction(type) {

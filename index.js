@@ -40,7 +40,7 @@ body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--te
 
 .scroll-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px; padding-bottom: 90px; }
 
-.fab { position: fixed; bottom: 24px; right: 20px; width: 54px; height: 54px; border-radius: 50%; background: var(--accent); color: #ffffff; border: none; font-size: 26px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(232,197,71,0.35); cursor: pointer; z-index: 50; transition: transform 0.15s; }
+.fab { position: fixed; bottom: 24px; right: 20px; width: 54px; height: 54px; border-radius: 50%; background: var(--accent); color: #ffffff; border: none; font-size: 26px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(184,134,11,0.25); cursor: pointer; z-index: 50; transition: transform 0.15s; }
 .fab:active { transform: scale(0.92); }
 
 .apt-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 12px; overflow: hidden; cursor: pointer; transition: border-color 0.2s, transform 0.15s; }
@@ -117,7 +117,7 @@ select option { background: var(--surface2); }
 .btn-outline { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
 .btn-danger { background: rgba(255,95,95,0.12); color: var(--red); border: 1.5px solid rgba(255,95,95,0.3); }
 
-.ai-box { background: linear-gradient(135deg, rgba(232,197,71,0.06), rgba(74,158,255,0.06)); border: 1.5px solid rgba(232,197,71,0.2); border-radius: 16px; padding: 16px; margin-bottom: 22px; }
+.ai-box { background: linear-gradient(135deg, rgba(184,134,11,0.06), rgba(37,99,235,0.06)); border: 1.5px solid rgba(184,134,11,0.2); border-radius: 16px; padding: 16px; margin-bottom: 22px; }
 .ai-box-hd { font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
 .ai-box-sub { font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
 .ai-row { display: flex; gap: 8px; }
@@ -127,7 +127,7 @@ select option { background: var(--surface2); }
 .ai-preview { margin-top: 12px; background: var(--surface2); border-radius: 10px; padding: 14px; border: 1px solid var(--border); }
 .ai-preview-name { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
 .ai-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.ai-badge { font-size: 12px; font-weight: 500; padding: 3px 9px; border-radius: 20px; background: rgba(232,197,71,0.1); color: var(--accent); border: 1px solid rgba(232,197,71,0.2); }
+.ai-badge { font-size: 12px; font-weight: 500; padding: 3px 9px; border-radius: 20px; background: rgba(184,134,11,0.1); color: var(--accent); border: 1px solid rgba(184,134,11,0.2); }
 .ai-apply-btn { width: 100%; padding: 10px; background: var(--accent); color: #ffffff; border: none; border-radius: 8px; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 13px; cursor: pointer; }
 .ai-status { font-size: 12px; margin-top: 10px; min-height: 16px; color: var(--muted); }
 .ai-status.loading { color: var(--accent2); }
@@ -318,7 +318,7 @@ select option { background: var(--surface2); }
   </div>
   <div class="ann-footer">
     <div style="display:flex;gap:6px">
-      <div class="cswatch on" style="background:#e8c547" onclick="setColor('#e8c547',this)"></div>
+      <div class="cswatch on" style="background:#b8860b" onclick="setColor('#b8860b',this)"></div>
       <div class="cswatch" style="background:#ff5f5f" onclick="setColor('#ff5f5f',this)"></div>
       <div class="cswatch" style="background:#4ecb7e" onclick="setColor('#4ecb7e',this)"></div>
       <div class="cswatch" style="background:#4a9eff" onclick="setColor('#4a9eff',this)"></div>
@@ -650,7 +650,7 @@ function renderPhotoGrid() {
 
 function removePhoto(i){pendingPhotos.splice(i,1);renderPhotoGrid();}
 
-let annIdx=null,annTool='draw',annColor='#e8c547',annDrawing=false;
+let annIdx=null,annTool='draw',annColor='#b8860b',annDrawing=false;
 let annHistory=[],annCv,annCtx,annBg,_arrowStart;
 
 function openAnnotator(idx) {

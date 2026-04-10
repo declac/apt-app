@@ -225,13 +225,29 @@ select option { background: var(--surface2); }
 .add-reaction-btn { flex: 1; padding: 10px; border-radius: 10px; border: 1.5px dashed; background: none; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
 .add-reaction-btn.pro { color: var(--green); border-color: rgba(22,163,74,0.35); }
 .add-reaction-btn.con { color: var(--red); border-color: rgba(220,38,38,0.3); }
+/* Table view */
+.tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -16px; }
+.apt-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 620px; }
+.apt-table th { position: sticky; top: 0; background: var(--surface); text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border); cursor: pointer; white-space: nowrap; user-select: none; }
+.apt-table th:first-child { position: sticky; left: 0; z-index: 2; background: var(--surface); }
+.apt-table th.sorted-asc::after { content: ' ↑'; }
+.apt-table th.sorted-desc::after { content: ' ↓'; }
+.apt-table td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.apt-table td:first-child { position: sticky; left: 0; background: var(--card-bg); font-weight: 500; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; z-index: 1; }
+.apt-table tr { cursor: pointer; background: var(--card-bg); }
+.apt-table tr:hover td { background: var(--surface2); }
+.tbl-toggle { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; font-family: 'Outfit', sans-serif; font-size: 12px; color: var(--muted); cursor: pointer; margin-left: 8px; }
+.tbl-toggle.on { background: var(--accent); color: #ffffff; border-color: var(--accent); }
 </style>
 </head>
 <body>
 
 <div class="header">
   <div class="header-logo">Apt<span>.</span></div>
-  <div class="header-count" id="hdr-count">0 units</div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <div class="header-count" id="hdr-count">0 units</div>
+    <button class="tbl-toggle" id="tbl-tog" onclick="toggleTableView()">☰</button>
+  </div>
 </div>
 <nav class="nav">
   <button class="nav-btn active" onclick="showView('list')">All Units</button>
@@ -275,6 +291,11 @@ select option { background: var(--surface2); }
 </select>
     </div>
   </div>
+  <div class="frow">
+    <div class="fg"><label>Showing Date</label><input type="date" id="f-showdate"></div>
+    <div class="fg"><label>RE Tax /mo</label><input type="text" id="f-retax" placeholder="Incl. or $450"></div>
+  </div>
+  <div class="fg"><label>Total Monthly Cost</label><input type="text" id="f-totalmonthly" placeholder="$1,287"></div>
   <div class="frow">
     <div class="fg"><label>Beds</label><input type="text" id="f-beds" placeholder="1"></div>
     <div class="fg"><label>Baths</label><input type="text" id="f-baths" placeholder="1"></div>
@@ -411,6 +432,7 @@ select option { background: var(--surface2); }
 let apts = [];
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 let view = 'list', editId = null, pendingPhotos = [], rating = 0, filterSt = 'all', lastParsed = null;
+let tableView = false, tableSort = { col: null, dir: 'asc' };
 
 function persist() {
   document.getElementById('hdr-count').textContent = apts.length + ' unit' + (apts.length !== 1 ? 's' : '');
@@ -434,6 +456,7 @@ function render() {
 }
 
 function renderList() {
+  if (tableView) return renderTable();
   const sts = ['all','prospecting','scheduled','shown-liked','shown-disliked','applying'];
   const lbs = ['All','Prospecting','Scheduled','Liked','Disliked','Applying'];
   const filtered = filterSt === 'all' ? apts : apts.filter(a => a.status === filterSt);
@@ -449,14 +472,81 @@ function renderList() {
       \${thumb}
       <div class="card-body">
         <div class="card-top"><div><div class="card-name">\${a.name}</div><div class="card-meta">\${meta||'—'}</div></div><div class="card-price">\${a.price||'—'}</div></div>
-        <div class="card-bottom"><div class="stars">\${stars}</div><span class="status-pill \${sc}">\${a.status}</span></div>
+        <div class="card-bottom">
+              <div class="stars">\${stars}</div>
+              <div style="display:flex;align-items:center;gap:6px">
+                \${a.showDate ? \`<span style="font-size:10px;color:var(--muted)">📅 \${new Date(a.showDate+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>\` : ''}
+                <span class="status-pill \${sc}">\${{prospecting:'Prospect',scheduled:'Scheduled','shown-liked':'Liked','shown-disliked':'Disliked',applying:'Applying'}[a.status]||a.status}</span>
+              </div>
+            </div>
       </div>
     </div>\`;
   }).join('') || \`<div class="empty"><div class="empty-icon">🔍</div><p>No units with this status.</p></div>\`;
   return pills + cards;
 }
 
+function renderTable() {
+  const sts = ['all','prospecting','scheduled','shown-liked','shown-disliked','applying'];
+  const lbs = ['All','Prospecting','Scheduled','Liked','Disliked','Applying'];
+  const pills = \`<div class="filter-row">\${sts.map((s,i) => \`<button class="fpill \${filterSt===s?'on':''}" onclick="setFilter('\${s}')">\${lbs[i]}</button>\`).join('')}</div>\`;
+  let filtered = filterSt === 'all' ? [...apts] : apts.filter(a => a.status === filterSt);
+
+  if (tableSort.col) {
+    filtered.sort((a, b) => {
+      let va, vb;
+      if (tableSort.col === 'price') { va = parseFloat((a.price||'').replace(/[^0-9.]/g,'')||0); vb = parseFloat((b.price||'').replace(/[^0-9.]/g,'')||0); }
+      else if (tableSort.col === 'total') { va = parseFloat((a.totalMonthly||'').replace(/[^0-9.]/g,'')||0); vb = parseFloat((b.totalMonthly||'').replace(/[^0-9.]/g,'')||0); }
+      else if (tableSort.col === 'date') { va = a.showDate||''; vb = b.showDate||''; }
+      else if (tableSort.col === 'status') { va = a.status||''; vb = b.status||''; }
+      else { va = (a.name||'').toLowerCase(); vb = (b.name||'').toLowerCase(); }
+      if (va < vb) return tableSort.dir === 'asc' ? -1 : 1;
+      if (va > vb) return tableSort.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  if (!filtered.length) return pills + \`<div class="empty"><p>No apartments match this filter.</p></div>\`;
+
+  const th = (label, col) => {
+    const active = tableSort.col === col;
+    const cls = active ? (tableSort.dir === 'asc' ? 'sorted-asc' : 'sorted-desc') : '';
+    return \`<th class="\${cls}" onclick="sortTable('\${col}')">\${label}</th>\`;
+  };
+
+  const rows = filtered.map(a => {
+    const sc = {prospecting:'s-prospecting',scheduled:'s-scheduled','shown-liked':'s-shown-liked','shown-disliked':'s-shown-disliked',applying:'s-applying'}[a.status]||'s-prospecting';
+    const dateStr = a.showDate ? new Date(a.showDate+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—';
+    const label = {prospecting:'Prospect',scheduled:'Scheduled','shown-liked':'Liked','shown-disliked':'Disliked',applying:'Applying'}[a.status]||a.status;
+    return \`<tr onclick="openDetail('\${a.id}')">
+      <td>\${esc(a.name)}</td>
+      <td>\${esc(a.price||'—')}</td>
+      <td>\${esc(a.totalMonthly||a.maint||'—')}</td>
+      <td>\${esc(a.btype||'—')}</td>
+      <td>\${esc(a.neighborhood||'—')}</td>
+      <td>\${dateStr}</td>
+      <td><span class="status-pill \${sc}">\${label}</span></td>
+    </tr>\`;
+  }).join('');
+
+  return pills + \`<div class="tbl-wrap"><table class="apt-table">
+    <thead><tr>\${th('Address','name')}\${th('Price','price')}\${th('Total /mo','total')}<th>Type</th><th>Neighborhood</th>\${th('Show Date','date')}\${th('Status','status')}</tr></thead>
+    <tbody>\${rows}</tbody>
+  </table></div>\`;
+}
+
 function setFilter(s) { filterSt = s; render(); }
+
+function toggleTableView() {
+  tableView = !tableView;
+  document.getElementById('tbl-tog').classList.toggle('on', tableView);
+  render();
+}
+
+function sortTable(col) {
+  if (tableSort.col === col) tableSort.dir = tableSort.dir === 'asc' ? 'desc' : 'asc';
+  else { tableSort.col = col; tableSort.dir = 'asc'; }
+  render();
+}
 
 function openDetail(id) {
   view = 'detail'; window._did = id;
@@ -504,6 +594,9 @@ function renderDetail() {
       <div class="d-field"><div class="lbl">Layout</div><div class="val">\${[a.beds?a.beds+' bd':null,a.baths?a.baths+' ba':null].filter(Boolean).join(', ')||'—'}</div></div>
       \${a.sqft?\`<div class="d-field"><div class="lbl">Sq Ft</div><div class="val">\${a.sqft} sf</div></div>\`:''}
       \${a.floor?\`<div class="d-field"><div class="lbl">Floor</div><div class="val">\${a.floor}</div></div>\`:''}
+      \${a.showDate ? \`<div class="d-field"><div class="lbl">Showing</div><div class="val">\${new Date(a.showDate+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div></div>\` : ''}
+      \${a.retax ? \`<div class="d-field"><div class="lbl">RE Tax</div><div class="val">\${esc(a.retax)}</div></div>\` : ''}
+      \${a.totalMonthly ? \`<div class="d-field"><div class="lbl">Total /mo</div><div class="val" style="font-weight:600">\${esc(a.totalMonthly)}</div></div>\` : ''}
       \${a.year?\`<div class="d-field"><div class="lbl">Year Built</div><div class="val">\${a.year}</div></div>\`:''}
     </div>
     \${coop?\`<div class="d-section">Co-op Details</div><div class="d-grid">
@@ -651,7 +744,7 @@ function openEdit(id) {
 }
 
 function clearForm() {
-  ['f-name','f-price','f-beds','f-baths','f-sqft','f-floor','f-hood','f-maint','f-flip','f-down','f-sublet','f-year','f-bldg','f-notes','f-url'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-name','f-price','f-beds','f-baths','f-sqft','f-floor','f-hood','f-maint','f-flip','f-down','f-sublet','f-year','f-bldg','f-notes','f-url','f-showdate','f-retax','f-totalmonthly'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['f-status','f-board','f-btype'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});
   ['doorman','elevator','laundry','outdoor','gym','parking','pets','storage','roof','bldry','fp','ac'].forEach(k=>{const el=document.getElementById('a-'+k);if(el)el.checked=false;});
   document.getElementById('ai-addr').value='';
@@ -669,6 +762,9 @@ function fillForm(a) {
   sv('f-maint',a.maint);sv('f-flip',a.flip);sv('f-down',a.down);
   sv('f-sublet',a.sublet);sv('f-year',a.year);sv('f-bldg',a.bldg);
   sv('f-notes',a.notes);sv('f-url',a.url);
+  sv('f-showdate', a.showDate);
+  sv('f-retax', a.retax);
+  sv('f-totalmonthly', a.totalMonthly);
   document.getElementById('f-status').value=a.status||'prospecting';
   document.getElementById('f-board').value=a.board||'';
   document.getElementById('f-btype').value=a.btype||'';
@@ -704,9 +800,13 @@ function saveApt() {
     reactions: _formReactions.filter(r => r.text.trim()),
     notes:document.getElementById('f-notes').value.trim(),
     url:document.getElementById('f-url').value.trim(),
+    showDate: document.getElementById('f-showdate').value || null,
+    retax: document.getElementById('f-retax').value.trim() || null,
+    totalMonthly: document.getElementById('f-totalmonthly').value.trim() || null,
     photos:JSON.parse(JSON.stringify(pendingPhotos)),
     updatedAt:new Date().toISOString(),
   };
+  if (apt.showDate && apt.status === 'prospecting') apt.status = 'scheduled';
   if(editId)apts=apts.map(a=>a.id===editId?apt:a);
   else apts.unshift(apt);
   persist();closeSheet('add-overlay');

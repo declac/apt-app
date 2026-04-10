@@ -512,8 +512,12 @@ let boardSort = 'name';
 
 function persist() {
   document.getElementById('hdr-count').textContent = apts.length + ' unit' + (apts.length !== 1 ? 's' : '');
-  fetch('/apts', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(apts) });
+  const body = JSON.stringify(apts);
+  try { fetch('/apts', { method: 'POST', headers: {'Content-Type':'application/json'}, body, keepalive: true }); } catch(e) {}
 }
+window.addEventListener('beforeunload', () => {
+  try { navigator.sendBeacon('/apts', new Blob([JSON.stringify(apts)], {type:'application/json'})); } catch(e) {}
+});
 
 function showView(v) {
   view = v;

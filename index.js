@@ -259,6 +259,7 @@ select option { background: var(--surface2); }
 .move-date-row { padding: 8px 0 4px 30px; }
 </style>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -269,6 +270,7 @@ select option { background: var(--surface2); }
     <button class="tbl-toggle" id="tbl-tog" onclick="toggleTableView()">☰</button>
     <button class="tbl-toggle" onclick="document.getElementById('import-inp').click()" title="Import Excel">↑ Import</button>
     <input type="file" id="import-inp" accept=".xlsx,.xls" style="display:none" onchange="handleImport(event)">
+    <button class="tbl-toggle" onclick="handleExport()" title="Export to Excel + Photos">↓ Export</button>
   </div>
 </div>
 <nav class="nav">
@@ -1293,6 +1295,58 @@ function confirmImport() {
   persist();
   closeSheet('import-overlay');
   showView('list');
+}
+
+// ── Excel + photos export ─────────────────────────────────────────────────────
+function handleExport() {
+  if (!apts.length) { alert('No apartments to export.'); return; }
+
+  const headers = ['Name','Neighborhood','Price','Status','Show Date','RE Tax /mo','Total /mo','Type','Building','URL','Rating','Pros','Cons','Notes','Photo Count'];
+  const rows = apts.map(a => {
+    const pros = (a.reactions||[]).filter(r=>r.type==='pro').map(r=>r.text).join('; ');
+    const cons = (a.reactions||[]).filter(r=>r.type==='con').map(r=>r.text).join('; ');
+    return [a.name||'', a.neighborhood||'', a.price||'', a.status||'', a.showDate||'',
+      a.retax||'', a.totalMonthly||'', a.btype||'', a.bldg||'', a.url||'',
+      a.rating||0, pros, cons, a.notes||'', (a.photos||[]).length];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = [22,16,10,14,12,10,10,10,16,30,6,30,30,30,8].map(w=>({wch:w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Apartments');
+  const xlsxBuf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+
+  const hasPhotos = apts.some(a => (a.photos||[]).length > 0);
+  if (!hasPhotos) {
+    const blob = new Blob([xlsxBuf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob); link.download = 'apartments.xlsx'; link.click();
+    return;
+  }
+
+  const zip = new JSZip();
+  zip.file('apartments.xlsx', xlsxBuf);
+  const photosFolder = zip.folder('photos');
+  apts.forEach(apt => {
+    if (!(apt.photos||[]).length) return;
+    const folderName = (apt.name||apt.id).replace(/[^a-zA-Z0-9 _-]/g,'').trim().slice(0,40)||apt.id;
+    const aptDir = photosFolder.folder(folderName);
+    apt.photos.forEach((p, i) => {
+      const dataURL = p.annotation || p.data; if (!dataURL) return;
+      const comma = dataURL.indexOf(','); if (comma < 0) return;
+      const meta = dataURL.slice(0, comma), b64 = dataURL.slice(comma + 1);
+      const ext = meta.includes('png') ? 'png' : 'jpg';
+      const bin = atob(b64);
+      const buf = new Uint8Array(bin.length);
+      for (let j = 0; j < bin.length; j++) buf[j] = bin.charCodeAt(j);
+      aptDir.file(\`photo-\${i+1}.\${ext}\`, buf);
+    });
+  });
+
+  zip.generateAsync({type:'blob'}).then(blob => {
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob); link.download = 'apartments-export.zip'; link.click();
+  });
 }
 
 fetch('/apts').then(r=>r.json()).then(data=>{

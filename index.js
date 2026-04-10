@@ -180,6 +180,50 @@ select option { background: var(--surface2); }
 .size-row { display: flex; align-items: center; gap: 8px; flex: 1; }
 .size-row span { font-size: 11px; color: var(--muted); }
 .size-row input[type=range] { flex: 1; height: 4px; padding: 0; background: var(--border); border-radius: 2px; border: none; -webkit-appearance: auto; }
+
+/* Reactions */
+.reactions-list { margin-bottom: 16px; }
+.reaction-item { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.reaction-item:last-child { border-bottom: none; }
+.reaction-badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px; flex-shrink: 0; }
+.reaction-badge.pro { background: rgba(22,163,74,0.12); color: var(--green); }
+.reaction-badge.con { background: rgba(220,38,38,0.1); color: var(--red); }
+.reaction-text { flex: 1; font-size: 14px; line-height: 1.4; }
+.reaction-thumb { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; flex-shrink: 0; cursor: pointer; border: 1px solid var(--border); }
+.reaction-del { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 0 4px; flex-shrink: 0; }
+.reactions-empty { color: var(--muted); font-size: 13px; font-style: italic; }
+
+/* Photo viewer overlay */
+.photo-viewer { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 200; flex-direction: column; }
+.photo-viewer.open { display: flex; }
+.photo-viewer-img { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.photo-viewer-img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.photo-viewer-footer { background: var(--surface); padding: 14px 16px; }
+.photo-viewer-close { background: none; border: none; color: var(--muted); font-size: 14px; cursor: pointer; margin-bottom: 10px; }
+.viewer-reactions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; min-height: 28px; }
+.viewer-reaction-chip { display: flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; border: 1px solid; }
+.viewer-reaction-chip.pro { background: rgba(22,163,74,0.1); color: var(--green); border-color: rgba(22,163,74,0.25); }
+.viewer-reaction-chip.con { background: rgba(220,38,38,0.08); color: var(--red); border-color: rgba(220,38,38,0.2); }
+.viewer-reaction-chip button { background: none; border: none; color: inherit; font-size: 13px; cursor: pointer; padding: 0; line-height: 1; }
+.viewer-tag-row { display: flex; gap: 8px; }
+.viewer-tag-btn { flex: 1; padding: 10px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface2); font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
+.viewer-tag-btn.pro-btn { color: var(--green); border-color: rgba(22,163,74,0.3); }
+.viewer-tag-btn.con-btn { color: var(--red); border-color: rgba(220,38,38,0.25); }
+.viewer-input-row { display: flex; gap: 8px; margin-top: 10px; }
+.viewer-input-row input { flex: 1; padding: 9px 12px; border-radius: 8px; border: 1.5px solid var(--accent); background: var(--surface2); color: var(--text); font-family: 'Outfit', sans-serif; font-size: 14px; outline: none; }
+.viewer-input-row button { padding: 9px 14px; border-radius: 8px; border: none; background: var(--accent); color: #ffffff; font-family: 'Outfit', sans-serif; font-weight: 700; cursor: pointer; font-size: 13px; }
+
+/* Edit form reactions */
+.reaction-editor-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.reaction-editor-item:last-child { border-bottom: none; }
+.reaction-type-tog { padding: 4px 10px; border-radius: 20px; border: 1.5px solid; font-size: 11px; font-weight: 700; cursor: pointer; background: none; }
+.reaction-type-tog.pro { color: var(--green); border-color: rgba(22,163,74,0.35); }
+.reaction-type-tog.con { color: var(--red); border-color: rgba(220,38,38,0.3); }
+.reaction-editor-text { flex: 1; background: none; border: none; font-family: 'Outfit', sans-serif; font-size: 14px; color: var(--text); outline: none; padding: 0; }
+.add-reaction-btns { display: flex; gap: 8px; margin-top: 12px; }
+.add-reaction-btn { flex: 1; padding: 10px; border-radius: 10px; border: 1.5px dashed; background: none; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
+.add-reaction-btn.pro { color: var(--green); border-color: rgba(22,163,74,0.35); }
+.add-reaction-btn.con { color: var(--red); border-color: rgba(220,38,38,0.3); }
 </style>
 </head>
 <body>
@@ -327,6 +371,25 @@ select option { background: var(--surface2); }
     <div class="size-row">
       <span>Size</span>
       <input type="range" id="brush-sz" min="2" max="24" value="4">
+    </div>
+  </div>
+</div>
+
+<!-- Photo viewer overlay -->
+<div class="photo-viewer" id="photo-viewer">
+  <div class="photo-viewer-img" id="pv-img-wrap">
+    <img id="pv-img" src="">
+  </div>
+  <div class="photo-viewer-footer">
+    <button class="photo-viewer-close" onclick="closePhotoViewer()">← Back</button>
+    <div class="viewer-reactions" id="pv-reactions"></div>
+    <div class="viewer-tag-row">
+      <button class="viewer-tag-btn pro-btn" onclick="startTag('pro')">👍 Pro</button>
+      <button class="viewer-tag-btn con-btn" onclick="startTag('con')">👎 Con</button>
+    </div>
+    <div class="viewer-input-row" id="pv-input-row" style="display:none">
+      <input type="text" id="pv-input" placeholder="What did you notice?" onkeydown="if(event.key==='Enter')submitTag()">
+      <button onclick="submitTag()">Add</button>
     </div>
   </div>
 </div>
@@ -745,7 +808,82 @@ function setRating(n){rating=n;document.querySelectorAll('.sp-btn').forEach((b,i
 function closeSheet(id){document.getElementById(id).classList.remove('open');}
 function maybeClose(e,id){if(e.target===document.getElementById(id))closeSheet(id);}
 
-fetch('/apts').then(r=>r.json()).then(data=>{ apts=Array.isArray(data)?data:[]; persist(); render(); }).catch(()=>{ render(); });
+// ── Photo viewer ──────────────────────────────────────────────────────────────
+let _pvAptId = null, _pvPhotoIndex = null, _pvTagType = null;
+
+function openPhotoViewer(aptId, photoIndex) {
+  const a = apts.find(x => x.id === aptId); if (!a) return;
+  const p = a.photos[photoIndex]; if (!p) return;
+  _pvAptId = aptId; _pvPhotoIndex = photoIndex; _pvTagType = null;
+  document.getElementById('pv-img').src = p.annotation || p.data;
+  document.getElementById('pv-input-row').style.display = 'none';
+  document.getElementById('pv-input').value = '';
+  renderViewerReactions();
+  document.getElementById('photo-viewer').classList.add('open');
+}
+
+function closePhotoViewer() {
+  document.getElementById('photo-viewer').classList.remove('open');
+  _pvAptId = null; _pvPhotoIndex = null; _pvTagType = null;
+}
+
+function renderViewerReactions() {
+  const a = apts.find(x => x.id === _pvAptId); if (!a) return;
+  const chips = (a.reactions || [])
+    .filter(r => r.photoIndex === _pvPhotoIndex)
+    .map(r => `<span class="viewer-reaction-chip ${r.type}">
+      ${r.type === 'pro' ? '✓' : '✗'} ${r.text}
+      <button onclick="deleteReaction('${r.id}')">×</button>
+    </span>`).join('');
+  document.getElementById('pv-reactions').innerHTML = chips || '';
+}
+
+function startTag(type) {
+  _pvTagType = type;
+  const row = document.getElementById('pv-input-row');
+  row.style.display = 'flex';
+  document.getElementById('pv-input').focus();
+}
+
+function submitTag() {
+  const text = document.getElementById('pv-input').value.trim();
+  if (!text || !_pvTagType) return;
+  const a = apts.find(x => x.id === _pvAptId); if (!a) return;
+  if (!a.reactions) a.reactions = [];
+  a.reactions.push({ id: Date.now().toString(), text, type: _pvTagType, photoIndex: _pvPhotoIndex });
+  persist();
+  document.getElementById('pv-input').value = '';
+  document.getElementById('pv-input-row').style.display = 'none';
+  _pvTagType = null;
+  renderViewerReactions();
+}
+
+function deleteReaction(reactionId) {
+  const a = apts.find(x => x.id === _pvAptId); if (!a) return;
+  a.reactions = (a.reactions || []).filter(r => r.id !== reactionId);
+  persist();
+  renderViewerReactions();
+  if (view === 'detail') render();
+}
+
+fetch('/apts').then(r=>r.json()).then(data=>{
+  apts = Array.isArray(data) ? data : [];
+  // Migrate pros/cons strings → reactions array
+  let migrated = false;
+  apts = apts.map(a => {
+    if (!a.reactions && (a.pros || a.cons)) {
+      const r = [];
+      if (a.pros) a.pros.split('\n').filter(Boolean).forEach(t => r.push({id: Date.now()+'_'+Math.random(), text: t, type: 'pro', photoIndex: null}));
+      if (a.cons) a.cons.split('\n').filter(Boolean).forEach(t => r.push({id: Date.now()+'_'+Math.random(), text: t, type: 'con', photoIndex: null}));
+      migrated = true;
+      return {...a, reactions: r};
+    }
+    if (!a.reactions) return {...a, reactions: []};
+    return a;
+  });
+  if (migrated) persist();
+  render();
+}).catch(()=>{ render(); });
 </script>
 </body>
 </html>`;

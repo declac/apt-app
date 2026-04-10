@@ -4,7 +4,7 @@
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -399,10 +399,40 @@ select option { background: var(--surface2); }
 <script>
 let apts = JSON.parse(localStorage.getItem('apts_v5') || '[]');
 let view = 'list', editId = null, pendingPhotos = [], rating = 0, filterSt = 'all', lastParsed = null;
+let _syncTimer = null;
 
 function persist() {
   localStorage.setItem('apts_v5', JSON.stringify(apts));
   document.getElementById('hdr-count').textContent = apts.length + ' unit' + (apts.length !== 1 ? 's' : '');
+  cloudSave();
+}
+
+function cloudSave() {
+  clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(function() {
+    fetch('/api/data', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({data: apts}), credentials: 'same-origin' }).catch(function(){});
+  }, 1500);
+}
+
+function cloudLoad() {
+  fetch('/api/data', { credentials: 'same-origin' }).then(function(r){ return r.json(); }).then(function(j) {
+    if (j.ok && Array.isArray(j.data) && j.data.length > 0) {
+      var local = JSON.parse(localStorage.getItem('apts_v5') || '[]');
+      if (local.length === 0 && j.data.length > 0) {
+        apts = j.data;
+        localStorage.setItem('apts_v5', JSON.stringify(apts));
+        render();
+      } else if (j.data.length > 0 && local.length > 0) {
+        var cloudTime = Math.max.apply(null, j.data.map(function(a){ return new Date(a.updatedAt||0).getTime(); }));
+        var localTime = Math.max.apply(null, local.map(function(a){ return new Date(a.updatedAt||0).getTime(); }));
+        if (cloudTime > localTime) {
+          apts = j.data;
+          localStorage.setItem('apts_v5', JSON.stringify(apts));
+          render();
+        }
+      }
+    }
+  }).catch(function(){});
 }
 
 function showView(v) {
@@ -1001,7 +1031,7 @@ function openSettings() {
   document.getElementById('settings-overlay').classList.add('open');
 }
 
-persist();render();
+persist();render();cloudLoad();
 </script>
 </body>
 </html>`;
@@ -1146,6 +1176,61 @@ Return ONLY a raw JSON object with no markdown, no backticks, no explanation:
   }
 }
 
+// ─── DATA SYNC HANDLERS ─────────────────────────────────────────────────────
+function getDeviceId(request) {
+  const cookie = request.headers.get('Cookie') || '';
+  const match = cookie.match(/apt_device=([a-f0-9-]+)/);
+  return match ? match[1] : null;
+}
+
+function makeDeviceId() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+function deviceCookie(id) {
+  return `apt_device=${id}; Path=/; Max-Age=315360000; SameSite=Lax`;
+}
+
+async function handleGetData(request, env) {
+  let id = getDeviceId(request);
+  const headers = { ...CORS, 'Content-Type': 'application/json' };
+  if (!id) {
+    id = makeDeviceId();
+    headers['Set-Cookie'] = deviceCookie(id);
+    return new Response(JSON.stringify({ ok: true, data: [], deviceId: id }), { headers });
+  }
+  try {
+    const raw = await env.APT_DATA.get('user:' + id);
+    const data = raw ? JSON.parse(raw) : [];
+    return new Response(JSON.stringify({ ok: true, data, deviceId: id }), { headers });
+  } catch(e) {
+    return new Response(JSON.stringify({ ok: true, data: [], deviceId: id }), { headers });
+  }
+}
+
+async function handlePutData(request, env) {
+  let id = getDeviceId(request);
+  const headers = { ...CORS, 'Content-Type': 'application/json' };
+  if (!id) {
+    id = makeDeviceId();
+    headers['Set-Cookie'] = deviceCookie(id);
+  }
+  try {
+    const body = await request.json();
+    const data = body.data;
+    if (!Array.isArray(data)) throw new Error('data must be an array');
+    await env.APT_DATA.put('user:' + id, JSON.stringify(data));
+    return new Response(JSON.stringify({ ok: true, deviceId: id }), { headers });
+  } catch(e) {
+    return new Response(JSON.stringify({ ok: false, error: e.message }), {
+      status: 400, headers
+    });
+  }
+}
+
 // ─── ROUTER ──────────────────────────────────────────────────────────────────
 export default {
   async fetch(request, env) {
@@ -1163,6 +1248,16 @@ export default {
     // POST /commute — transit directions
     if (request.method === 'POST' && url.pathname === '/commute') {
       return handleCommute(request, env);
+    }
+
+    // GET /api/data — load apartments from cloud
+    if (request.method === 'GET' && url.pathname === '/api/data') {
+      return handleGetData(request, env);
+    }
+
+    // PUT /api/data — save apartments to cloud
+    if (request.method === 'PUT' && url.pathname === '/api/data') {
+      return handlePutData(request, env);
     }
 
     // GET / — serve the app

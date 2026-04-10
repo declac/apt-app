@@ -484,6 +484,7 @@ let apts = [];
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 let view = 'list', prevView = 'list', editId = null, pendingPhotos = [], rating = 0, filterSt = 'all', lastParsed = null;
 let tableView = false, tableSort = { col: null, dir: 'asc' };
+let boardSort = 'name';
 
 function persist() {
   document.getElementById('hdr-count').textContent = apts.length + ' unit' + (apts.length !== 1 ? 's' : '');
@@ -546,11 +547,12 @@ function renderTable() {
   if (tableSort.col) {
     filtered.sort((a, b) => {
       let va, vb;
-      if (tableSort.col === 'price') { va = parseFloat((a.price||'').replace(/[^0-9.]/g,'')||0); vb = parseFloat((b.price||'').replace(/[^0-9.]/g,'')||0); }
-      else if (tableSort.col === 'total') { va = parseFloat((a.totalMonthly||'').replace(/[^0-9.]/g,'')||0); vb = parseFloat((b.totalMonthly||'').replace(/[^0-9.]/g,'')||0); }
-      else if (tableSort.col === 'date') { va = a.showDate||''; vb = b.showDate||''; }
+      if (tableSort.col === 'price') { va = parseFloat((a.price||'').replace(/[^0-9.]/g,'')||0); vb = parseFloat((b.price||'').replace(/[^0-9.]/g,'')||0); return tableSort.dir==='asc'?va-vb:vb-va; }
+      if (tableSort.col === 'total') { va = parseFloat((a.totalMonthly||'').replace(/[^0-9.]/g,'')||0); vb = parseFloat((b.totalMonthly||'').replace(/[^0-9.]/g,'')||0); return tableSort.dir==='asc'?va-vb:vb-va; }
+      if (tableSort.col === 'rating') { return tableSort.dir==='asc'?(a.rating||0)-(b.rating||0):(b.rating||0)-(a.rating||0); }
+      if (tableSort.col === 'date') { va = a.showDate||''; vb = b.showDate||''; }
       else if (tableSort.col === 'status') { va = a.status||''; vb = b.status||''; }
-      else { va = (a.name||'').toLowerCase(); vb = (b.name||'').toLowerCase(); }
+      else { return (tableSort.dir==='asc'?1:-1) * (a.name||'').localeCompare(b.name||'', undefined, {numeric:true, sensitivity:'base'}); }
       if (va < vb) return tableSort.dir === 'asc' ? -1 : 1;
       if (va > vb) return tableSort.dir === 'asc' ? 1 : -1;
       return 0;
@@ -569,6 +571,7 @@ function renderTable() {
     const sc = {prospecting:'s-prospecting',scheduled:'s-scheduled','shown-liked':'s-shown-liked','shown-disliked':'s-shown-disliked',applying:'s-applying'}[a.status]||'s-prospecting';
     const dateStr = a.showDate ? new Date(a.showDate+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—';
     const label = {prospecting:'Prospect',scheduled:'Scheduled','shown-liked':'Liked','shown-disliked':'Disliked',applying:'Applying'}[a.status]||a.status;
+    const stars = '★'.repeat(a.rating||0) + '☆'.repeat(5-(a.rating||0));
     return \`<tr onclick="openDetail('\${a.id}')">
       <td>\${esc(a.name)}</td>
       <td>\${esc(a.price||'—')}</td>
@@ -576,12 +579,13 @@ function renderTable() {
       <td>\${esc(a.btype||'—')}</td>
       <td>\${esc(a.neighborhood||'—')}</td>
       <td>\${dateStr}</td>
+      <td style="font-size:11px;letter-spacing:-1px;color:var(--accent)">\${stars}</td>
       <td><span class="status-pill \${sc}">\${label}</span></td>
     </tr>\`;
   }).join('');
 
   return pills + \`<div class="tbl-wrap"><table class="apt-table">
-    <thead><tr>\${th('Address','name')}\${th('Price','price')}\${th('Total /mo','total')}<th>Type</th><th>Neighborhood</th>\${th('Show Date','date')}\${th('Status','status')}</tr></thead>
+    <thead><tr>\${th('Address','name')}\${th('Price','price')}\${th('Total /mo','total')}<th>Type</th><th>Neighborhood</th>\${th('Show Date','date')}\${th('★','rating')}\${th('Status','status')}</tr></thead>
     <tbody>\${rows}</tbody>
   </table></div>\`;
 }
@@ -720,7 +724,14 @@ function renderShortlist() {
     }).join('');
 }
 
+function setBoardSort(s) { boardSort = s; render(); }
+
 function renderBoard() {
+  const sortControl = \`<div style="display:flex;align-items:center;gap:8px;padding:8px 0 12px;flex-shrink:0">
+    <span style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Sort</span>
+    \${[['name','Unit'],['price','Price'],['date','Date'],['rating','★']].map(([v,l])=>\`<button style="padding:4px 10px;border-radius:20px;border:1px solid \${boardSort===v?'var(--accent)':'var(--border)'};background:\${boardSort===v?'var(--accent)':'none'};color:\${boardSort===v?'#fff':'var(--muted)'};font-family:Outfit,sans-serif;font-size:12px;cursor:pointer" onclick="setBoardSort('\${v}')">\${l}</button>\`).join('')}
+  </div>\`;
+
   const COLS = [
     { status: 'prospecting',    label: 'Prospecting',    color: 'var(--accent2)' },
     { status: 'scheduled',      label: 'Scheduled',      color: '#7c3aed' },
@@ -728,8 +739,14 @@ function renderBoard() {
     { status: 'shown-disliked', label: 'Disliked',       color: 'var(--red)' },
     { status: 'applying',       label: 'Applying',       color: 'var(--accent)' },
   ];
+  const sortCards = cards => [...cards].sort((a,b) => {
+    if (boardSort === 'price') return parseFloat((a.price||'').replace(/[^0-9.]/g,'')||0) - parseFloat((b.price||'').replace(/[^0-9.]/g,'')||0);
+    if (boardSort === 'date')  return (a.showDate||'').localeCompare(b.showDate||'');
+    if (boardSort === 'rating') return (b.rating||0) - (a.rating||0);
+    return (a.name||'').localeCompare(b.name||'', undefined, {numeric:true, sensitivity:'base'});
+  });
   const cols = COLS.map(col => {
-    const cards = apts.filter(a => a.status === col.status);
+    const cards = sortCards(apts.filter(a => a.status === col.status));
     const cardHtml = cards.map(a => {
       const dateStr = a.showDate ? \`📅 \${new Date(a.showDate+\`T12:00:00\`).toLocaleDateString('en-US',{month:'short',day:'numeric'})}\` : '';
       return \`<div class="board-card" draggable="true" ondragstart="boardDragStart(event,'\${a.id}')" ondragend="boardDragEnd(event)" ontouchstart="boardTouchStart(event,'\${a.id}')" onclick="openDetail('\${a.id}')" data-id="\${a.id}">
@@ -747,7 +764,7 @@ function renderBoard() {
       <div class="board-col-cards">\${cardHtml}</div>
     </div>\`;
   }).join('');
-  return \`<div class="board-wrap">\${cols}</div>\`;
+  return sortControl + \`<div class="board-wrap">\${cols}</div>\`;
 }
 
 // ── Board drag (desktop mouse) ────────────────────────────────────────────────

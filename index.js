@@ -241,7 +241,8 @@ select option { background: var(--surface2); }
 /* Kanban board */
 .board-wrap { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 20px; height: calc(100dvh - 120px); -webkit-overflow-scrolling: touch; }
 .board-wrap::-webkit-scrollbar { display: none; }
-.board-col { flex-shrink: 0; width: 220px; display: flex; flex-direction: column; background: var(--surface2); border-radius: 14px; overflow: hidden; }
+.board-col { flex-shrink: 0; width: 220px; display: flex; flex-direction: column; background: var(--surface2); border-radius: 14px; overflow: hidden; transition: box-shadow 0.15s; }
+.board-col.drag-over { box-shadow: 0 0 0 2px var(--accent); }
 .board-col-hd { padding: 12px 14px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
 .board-col-count { background: var(--surface); border-radius: 20px; padding: 2px 8px; font-size: 11px; color: var(--muted); font-weight: 600; }
 .board-col-cards { flex: 1; overflow-y: auto; padding: 10px 8px; display: flex; flex-direction: column; gap: 8px; -webkit-overflow-scrolling: touch; }
@@ -480,7 +481,7 @@ select option { background: var(--surface2); }
 <script>
 let apts = [];
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-let view = 'list', editId = null, pendingPhotos = [], rating = 0, filterSt = 'all', lastParsed = null;
+let view = 'list', prevView = 'list', editId = null, pendingPhotos = [], rating = 0, filterSt = 'all', lastParsed = null;
 let tableView = false, tableSort = { col: null, dir: 'asc' };
 
 function persist() {
@@ -599,7 +600,7 @@ function sortTable(col) {
 }
 
 function openDetail(id) {
-  view = 'detail'; window._did = id;
+  prevView = view; view = 'detail'; window._did = id;
   document.getElementById('fab').style.display = 'none';
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   render();
@@ -630,7 +631,7 @@ function renderDetail() {
       \${r.photoIndex!=null && a.photos?.[r.photoIndex] ? \`<img class="reaction-thumb" src="\${a.photos[r.photoIndex].annotation||a.photos[r.photoIndex].data}" onclick="openPhotoViewer('\${a.id}',\${r.photoIndex})">\` : ''}
     </div>\`).join('') || \`<div class="reactions-empty">Tap a photo above to add cons</div>\`;
   return \`
-    <button class="back-btn" onclick="showView('list')">← All Units</button>
+    <button class="back-btn" onclick="showView(prevView||'list')">← Back</button>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:4px">
       <h2 style="font-family:'Playfair Display',serif;font-size:21px;line-height:1.2;flex:1">\${a.name}</h2>
       <span class="status-pill \${sc}">\${a.status}</span>
@@ -664,7 +665,7 @@ function renderDetail() {
     <br>
     <button class="btn btn-primary" onclick="openEdit('\${a.id}')">Edit</button>
     <button class="btn btn-danger" onclick="delApt('\${a.id}')">Delete</button>
-    <button class="btn btn-outline" onclick="showView('list')">Back</button>
+    <button class="btn btn-outline" onclick="showView(prevView||'list')">Back</button>
     <div style="height:20px"></div>\`;
 }
 
@@ -739,7 +740,7 @@ function renderBoard() {
         \${dateStr ? \`<div class="board-card-date">\${dateStr}</div>\` : ''}
       </div>\`;
     }).join('') || \`<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px">Empty</div>\`;
-    const dropHandlers = isTouch ? '' : \`ondragover="event.preventDefault()" ondrop="boardDrop(event,'\${col.status}')"\`;
+    const dropHandlers = isTouch ? '' : \`ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="boardDrop(event,'\${col.status}')"\`;
     return \`<div class="board-col" \${dropHandlers}>
       <div class="board-col-hd" style="color:\${col.color}">
         \${col.label}
@@ -757,6 +758,7 @@ function boardDragStart(e, id) { _dragId = id; e.target.style.opacity = '0.5'; }
 function boardDragEnd(e) { e.target.style.opacity = '1'; _dragId = null; }
 function boardDrop(e, status) {
   e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
   if (!_dragId) return;
   const a = apts.find(x => x.id === _dragId); if (!a) return;
   a.status = status;
@@ -954,7 +956,7 @@ function saveApt() {
 
 function delApt(id) {
   if(!confirm('Delete this apartment?'))return;
-  apts=apts.filter(a=>a.id!==id);persist();showView('list');
+  apts=apts.filter(a=>a.id!==id);persist();showView(prevView||'list');
 }
 
 function handlePhotos(e) {

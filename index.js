@@ -528,6 +528,11 @@ function renderCompare() {
   const am=(apt,k)=>apt.amenities?.[k]?\`<span style="color:var(--green)">✓</span>\`:\`<span style="color:var(--muted)">—</span>\`;
   const pp=s=>{const n=parseFloat((s||'').replace(/[^0-9.]/g,''));return isNaN(n)?null:n;};
   const pa=pp(a.price),pb=pp(b.price);
+  const rxSummary = (apt, type) => {
+    const items = (apt.reactions || []).filter(r => r.type === type).slice(0, 4);
+    if (!items.length) return '—';
+    return items.map(r => `<div style="font-size:12px;margin-bottom:3px">${type==='pro'?'✓':'✗'} ${esc(r.text)}${r.photoIndex!=null?' 🖼':''}</div>`).join('');
+  };
   const rows=[
     ['Price',\`<span class="\${pa&&pb&&pa<pb?'cmp-win':''}">\${a.price||'—'}</span>\`,\`<span class="\${pa&&pb&&pb<pa?'cmp-win':''}">\${b.price||'—'}</span>\`],
     ['Beds',a.beds||'—',b.beds||'—'],['Baths',a.baths||'—',b.baths||'—'],
@@ -539,6 +544,8 @@ function renderCompare() {
     ['W/D',am(a,'laundry'),am(b,'laundry')],['Fireplace',am(a,'fp'),am(b,'fp')],
     ['Outdoor',am(a,'outdoor'),am(b,'outdoor')],['Pets',am(a,'pets'),am(b,'pets')],
     ['Rating',ss(a.rating),ss(b.rating)],
+    ['Pros', rxSummary(a,'pro'), rxSummary(b,'pro')],
+    ['Cons', rxSummary(a,'con'), rxSummary(b,'con')],
   ].map(([l,va,vb])=>\`<tr><td>\${l}</td><td>\${va}</td><td>\${vb}</td></tr>\`).join('');
   return \`<div class="cmp-selects">
     <div><label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;display:block;margin-bottom:4px">Unit A</label><select onchange="window._c1=this.value;render()" style="font-size:13px">\${o1}</select></div>

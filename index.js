@@ -57,10 +57,11 @@ body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--te
 .star { font-size: 14px; color: var(--border); }
 .star.on { color: var(--accent); }
 .status-pill { font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; padding: 3px 9px; border-radius: 20px; }
-.s-active { background: rgba(22,163,74,0.12); color: var(--green); }
-.s-toured { background: rgba(37,99,235,0.12); color: var(--accent2); }
-.s-applying { background: rgba(184,134,11,0.12); color: var(--accent); }
-.s-pass { background: var(--surface2); color: var(--muted); }
+.s-prospecting   { background: rgba(37,99,235,0.1);   color: var(--accent2); }
+.s-scheduled     { background: rgba(124,58,237,0.1);   color: #7c3aed; }
+.s-shown-liked   { background: rgba(22,163,74,0.12);   color: var(--green); }
+.s-shown-disliked{ background: rgba(220,38,38,0.08);   color: var(--red); }
+.s-applying      { background: rgba(184,134,11,0.12);  color: var(--accent); }
 
 .empty { text-align: center; padding: 60px 24px; color: var(--muted); }
 .empty-icon { font-size: 44px; margin-bottom: 14px; }
@@ -265,7 +266,13 @@ select option { background: var(--surface2); }
   <div class="frow">
     <div class="fg"><label>Price</label><input type="text" id="f-price" placeholder="$550,000"></div>
     <div class="fg"><label>Status</label>
-      <select id="f-status"><option value="active">Active</option><option value="toured">Toured</option><option value="applying">Applying</option><option value="pass">Passed</option></select>
+      <select id="f-status">
+  <option value="prospecting">Prospecting</option>
+  <option value="scheduled">Scheduled</option>
+  <option value="shown-liked">Shown — Liked</option>
+  <option value="shown-disliked">Shown — Disliked</option>
+  <option value="applying">Applying</option>
+</select>
     </div>
   </div>
   <div class="frow">
@@ -427,8 +434,8 @@ function render() {
 }
 
 function renderList() {
-  const sts = ['all','active','toured','applying','pass'];
-  const lbs = ['All','Active','Toured','Applying','Passed'];
+  const sts = ['all','prospecting','scheduled','shown-liked','shown-disliked','applying'];
+  const lbs = ['All','Prospecting','Scheduled','Liked','Disliked','Applying'];
   const filtered = filterSt === 'all' ? apts : apts.filter(a => a.status === filterSt);
   if (!apts.length) return \`<div class="empty"><div class="empty-icon">🏙️</div><h3>No apartments yet</h3><p>Tap + and type any address.<br>Live listing data fills in automatically.</p></div>\`;
   const pills = \`<div class="filter-row">\${sts.map((s,i) => \`<button class="fpill \${filterSt===s?'on':''}" onclick="setFilter('\${s}')">\${lbs[i]}</button>\`).join('')}</div>\`;
@@ -436,7 +443,7 @@ function renderList() {
     const photo = a.photos?.length ? (a.photos[0].annotation || a.photos[0].data) : null;
     const thumb = photo ? \`<div class="card-photo"><img src="\${photo}"></div>\` : \`<div class="card-photo">🏢</div>\`;
     const stars = [1,2,3,4,5].map(i => \`<span class="star \${i<=a.rating?'on':''}">★</span>\`).join('');
-    const sc = {active:'s-active',toured:'s-toured',applying:'s-applying',pass:'s-pass'}[a.status]||'s-active';
+    const sc = {prospecting:'s-prospecting',scheduled:'s-scheduled','shown-liked':'s-shown-liked','shown-disliked':'s-shown-disliked',applying:'s-applying'}[a.status]||'s-prospecting';
     const meta = [a.neighborhood, a.bldg, a.beds?a.beds+'br':null, a.baths?a.baths+'ba':null, a.sqft?a.sqft+'sf':null].filter(Boolean).join(' · ');
     return \`<div class="apt-card" onclick="openDetail('\${a.id}')">
       \${thumb}
@@ -461,7 +468,7 @@ function openDetail(id) {
 function renderDetail() {
   const a = apts.find(x => x.id === window._did); if (!a) return '';
   const stars = [1,2,3,4,5].map(i=>\`<span class="star \${i<=a.rating?'on':''}">★</span>\`).join('');
-  const sc = {active:'s-active',toured:'s-toured',applying:'s-applying',pass:'s-pass'}[a.status]||'s-active';
+  const sc = {prospecting:'s-prospecting',scheduled:'s-scheduled','shown-liked':'s-shown-liked','shown-disliked':'s-shown-disliked',applying:'s-applying'}[a.status]||'s-prospecting';
   const photos = a.photos?.length
     ? \`<div class="detail-photos">\${a.photos.map((p,i)=>\`<div class="d-photo" onclick="openPhotoViewer('\${a.id}',\${i})" style="cursor:pointer"><img src="\${p.annotation||p.data}">\${p.note?\`<div class="d-photo-lbl">\${esc(p.note)}</div>\`:''}</div>\`).join('')}</div>\`
     : \`<div style="background:var(--surface2);border-radius:12px;height:80px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;margin-bottom:16px">No photos yet — add them via Edit</div>\`;
@@ -662,7 +669,7 @@ function fillForm(a) {
   sv('f-maint',a.maint);sv('f-flip',a.flip);sv('f-down',a.down);
   sv('f-sublet',a.sublet);sv('f-year',a.year);sv('f-bldg',a.bldg);
   sv('f-notes',a.notes);sv('f-url',a.url);
-  document.getElementById('f-status').value=a.status||'active';
+  document.getElementById('f-status').value=a.status||'prospecting';
   document.getElementById('f-board').value=a.board||'';
   document.getElementById('f-btype').value=a.btype||'';
   ['doorman','elevator','laundry','outdoor','gym','parking','pets','storage','roof','bldry','fp','ac'].forEach(k=>{const el=document.getElementById('a-'+k);if(el)el.checked=!!(a.amenities&&a.amenities[k]);});
@@ -929,18 +936,19 @@ function removeFormReaction(i) {
 
 fetch('/apts').then(r=>r.json()).then(data=>{
   apts = Array.isArray(data) ? data : [];
-  // Migrate pros/cons strings → reactions array
+  const STATUS_MAP = { active: 'prospecting', toured: 'shown-liked', pass: 'shown-disliked' };
   let migrated = false;
   apts = apts.map(a => {
-    if (!a.reactions && (a.pros || a.cons)) {
+    let updated = {...a};
+    if (STATUS_MAP[a.status]) { updated.status = STATUS_MAP[a.status]; migrated = true; }
+    if (!updated.reactions && (a.pros || a.cons)) {
       const r = [];
       if (a.pros) a.pros.split('\n').filter(Boolean).forEach(t => r.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'pro', photoIndex: null}));
       if (a.cons) a.cons.split('\n').filter(Boolean).forEach(t => r.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'con', photoIndex: null}));
-      migrated = true;
-      return {...a, reactions: r};
+      updated.reactions = r; migrated = true;
     }
-    if (!a.reactions) return {...a, reactions: []};
-    return a;
+    if (!updated.reactions) updated.reactions = [];
+    return updated;
   });
   if (migrated) persist();
   render();

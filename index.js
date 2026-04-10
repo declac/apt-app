@@ -253,6 +253,7 @@ select option { background: var(--surface2); }
 .board-card-name { font-size: 13px; font-weight: 600; line-height: 1.3; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board-card-price { font-size: 12px; color: var(--accent); font-weight: 500; }
 .board-card-date { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.board-card-move { margin-top: 8px; width: 100%; padding: 5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-family: 'Outfit', sans-serif; font-size: 11px; color: var(--muted); cursor: pointer; text-align: center; }
 /* Move sheet */
 .move-sheet-option { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
 .move-sheet-option:last-child { border-bottom: none; }
@@ -720,7 +721,6 @@ function renderShortlist() {
 }
 
 function renderBoard() {
-  const isTouch = 'ontouchstart' in window;
   const COLS = [
     { status: 'prospecting',    label: 'Prospecting',    color: 'var(--accent2)' },
     { status: 'scheduled',      label: 'Scheduled',      color: '#7c3aed' },
@@ -732,15 +732,14 @@ function renderBoard() {
     const cards = apts.filter(a => a.status === col.status);
     const cardHtml = cards.map(a => {
       const dateStr = a.showDate ? \`📅 \${new Date(a.showDate+\`T12:00:00\`).toLocaleDateString('en-US',{month:'short',day:'numeric'})}\` : '';
-      const drag = isTouch ? '' : \`draggable="true" ondragstart="boardDragStart(event,'\${a.id}')" ondragend="boardDragEnd(event)"\`;
-      const tap = isTouch ? \`onclick="openMoveSheet('\${a.id}')"\` : \`onclick="openDetail('\${a.id}')"\`;
-      return \`<div class="board-card" \${drag} \${tap} data-id="\${a.id}">
+      return \`<div class="board-card" draggable="true" ondragstart="boardDragStart(event,'\${a.id}')" ondragend="boardDragEnd(event)" onclick="openDetail('\${a.id}')" data-id="\${a.id}">
         <div class="board-card-name">\${a.name}</div>
         <div class="board-card-price">\${a.price||'—'}</div>
         \${dateStr ? \`<div class="board-card-date">\${dateStr}</div>\` : ''}
+        <button class="board-card-move" onclick="event.stopPropagation();openMoveSheet('\${a.id}')">Move →</button>
       </div>\`;
     }).join('') || \`<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px">Empty</div>\`;
-    const dropHandlers = isTouch ? '' : \`ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="boardDrop(event,'\${col.status}')"\`;
+    const dropHandlers = \`ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="boardDrop(event,'\${col.status}')"\`;
     return \`<div class="board-col" \${dropHandlers}>
       <div class="board-col-hd" style="color:\${col.color}">
         \${col.label}

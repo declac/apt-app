@@ -396,6 +396,7 @@ select option { background: var(--surface2); }
 
 <script>
 let apts = [];
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 let view = 'list', editId = null, pendingPhotos = [], rating = 0, filterSt = 'all', lastParsed = null;
 
 function persist() {
@@ -831,9 +832,9 @@ function renderViewerReactions() {
   const a = apts.find(x => x.id === _pvAptId); if (!a) return;
   const chips = (a.reactions || [])
     .filter(r => r.photoIndex === _pvPhotoIndex)
-    .map(r => `<span class="viewer-reaction-chip ${r.type}">
-      ${r.type === 'pro' ? '✓' : '✗'} ${r.text}
-      <button onclick="deleteReaction('${r.id}')">×</button>
+    .map(r => `<span class="viewer-reaction-chip ${r.type === 'pro' ? 'pro' : 'con'}">
+      ${r.type === 'pro' ? '✓' : '✗'} ${esc(r.text)}
+      <button onclick="deleteReaction('${esc(r.id)}')">×</button>
     </span>`).join('');
   document.getElementById('pv-reactions').innerHTML = chips || '';
 }
@@ -850,7 +851,7 @@ function submitTag() {
   if (!text || !_pvTagType) return;
   const a = apts.find(x => x.id === _pvAptId); if (!a) return;
   if (!a.reactions) a.reactions = [];
-  a.reactions.push({ id: Date.now().toString(), text, type: _pvTagType, photoIndex: _pvPhotoIndex });
+  a.reactions.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2), text, type: _pvTagType, photoIndex: _pvPhotoIndex });
   persist();
   document.getElementById('pv-input').value = '';
   document.getElementById('pv-input-row').style.display = 'none';
@@ -873,8 +874,8 @@ fetch('/apts').then(r=>r.json()).then(data=>{
   apts = apts.map(a => {
     if (!a.reactions && (a.pros || a.cons)) {
       const r = [];
-      if (a.pros) a.pros.split('\n').filter(Boolean).forEach(t => r.push({id: Date.now()+'_'+Math.random(), text: t, type: 'pro', photoIndex: null}));
-      if (a.cons) a.cons.split('\n').filter(Boolean).forEach(t => r.push({id: Date.now()+'_'+Math.random(), text: t, type: 'con', photoIndex: null}));
+      if (a.pros) a.pros.split('\n').filter(Boolean).forEach(t => r.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'pro', photoIndex: null}));
+      if (a.cons) a.cons.split('\n').filter(Boolean).forEach(t => r.push({id: Date.now().toString(36)+Math.random().toString(36).slice(2), text: t, type: 'con', photoIndex: null}));
       migrated = true;
       return {...a, reactions: r};
     }

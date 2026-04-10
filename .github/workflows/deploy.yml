@@ -13,6 +13,16 @@ jobs:
         with:
           node-version: '20'
       - run: npm install
+      - name: Syntax check app script
+        run: |
+          node -e "
+          const src = require('fs').readFileSync('index.js','utf8');
+          const start = src.indexOf('<script>');
+          const end = src.lastIndexOf('</script>');
+          const script = src.slice(start + 8, end);
+          require('fs').writeFileSync('/tmp/app-script.js', script);
+          "
+          node --check /tmp/app-script.js
       - run: npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

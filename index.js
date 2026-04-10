@@ -252,9 +252,7 @@ select option { background: var(--surface2); }
 .board-card.drag-over { border-color: var(--accent); background: var(--surface2); }
 .board-card-name { font-size: 13px; font-weight: 600; line-height: 1.3; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board-card-price { font-size: 12px; color: var(--accent); font-weight: 500; }
-.board-card-date { font-size: 11px; color: var(--muted); margin-top: 4px; }
-.board-card-move { margin-top: 8px; width: 100%; padding: 5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-family: 'Outfit', sans-serif; font-size: 11px; color: var(--muted); cursor: pointer; text-align: center; }
-/* Move sheet */
+.board-card-date { font-size: 11px; color: var(--muted); margin-top: 4px; }/* Move sheet */
 .move-sheet-option { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
 .move-sheet-option:last-child { border-bottom: none; }
 .move-sheet-option input[type=radio] { width: 18px; height: 18px; accent-color: var(--accent); flex-shrink: 0; }
@@ -732,15 +730,14 @@ function renderBoard() {
     const cards = apts.filter(a => a.status === col.status);
     const cardHtml = cards.map(a => {
       const dateStr = a.showDate ? \`📅 \${new Date(a.showDate+\`T12:00:00\`).toLocaleDateString('en-US',{month:'short',day:'numeric'})}\` : '';
-      return \`<div class="board-card" draggable="true" ondragstart="boardDragStart(event,'\${a.id}')" ondragend="boardDragEnd(event)" onclick="openDetail('\${a.id}')" data-id="\${a.id}">
+      return \`<div class="board-card" draggable="true" ondragstart="boardDragStart(event,'\${a.id}')" ondragend="boardDragEnd(event)" ontouchstart="boardTouchStart(event,'\${a.id}')" onclick="openDetail('\${a.id}')" data-id="\${a.id}">
         <div class="board-card-name">\${a.name}</div>
         <div class="board-card-price">\${a.price||'—'}</div>
         \${dateStr ? \`<div class="board-card-date">\${dateStr}</div>\` : ''}
-        <button class="board-card-move" onclick="event.stopPropagation();openMoveSheet('\${a.id}')">Move →</button>
       </div>\`;
     }).join('') || \`<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px">Empty</div>\`;
     const dropHandlers = \`ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="boardDrop(event,'\${col.status}')"\`;
-    return \`<div class="board-col" \${dropHandlers}>
+    return \`<div class="board-col" data-status="\${col.status}" \${dropHandlers}>
       <div class="board-col-hd" style="color:\${col.color}">
         \${col.label}
         <span class="board-col-count">\${cards.length}</span>
@@ -751,7 +748,7 @@ function renderBoard() {
   return \`<div class="board-wrap">\${cols}</div>\`;
 }
 
-// ── Board drag (desktop) ──────────────────────────────────────────────────────
+// ── Board drag (desktop mouse) ────────────────────────────────────────────────
 let _dragId = null;
 function boardDragStart(e, id) { _dragId = id; e.target.style.opacity = '0.5'; }
 function boardDragEnd(e) { e.target.style.opacity = '1'; _dragId = null; }
@@ -760,11 +757,71 @@ function boardDrop(e, status) {
   e.currentTarget.classList.remove('drag-over');
   if (!_dragId) return;
   const a = apts.find(x => x.id === _dragId); if (!a) return;
-  a.status = status;
-  persist();
-  render();
+  a.status = status; persist(); render();
 }
-function initBoardDrag() {}
+
+// ── Board touch drag (mobile) ─────────────────────────────────────────────────
+let _tDragId = null, _tGhost = null, _tCard = null, _tDragging = false, _tSx = 0, _tSy = 0;
+let _boardListenersAdded = false;
+
+function boardTouchStart(e, id) {
+  _tDragId = id; _tCard = e.currentTarget; _tDragging = false; _tGhost = null;
+  const t = e.touches[0]; _tSx = t.clientX; _tSy = t.clientY;
+}
+
+function _boardTouchMove(e) {
+  if (!_tDragId) return;
+  const t = e.touches[0];
+  const dx = t.clientX - _tSx, dy = t.clientY - _tSy;
+  if (!_tDragging && Math.sqrt(dx*dx + dy*dy) > 10) {
+    _tDragging = true;
+    const r = _tCard.getBoundingClientRect();
+    _tGhost = _tCard.cloneNode(true);
+    _tGhost.style.cssText = \`position:fixed;top:\${r.top}px;left:\${r.left}px;width:\${r.width}px;opacity:0.85;pointer-events:none;z-index:1000;transform:scale(1.04);box-shadow:0 8px 24px rgba(0,0,0,0.18);border-radius:10px;transition:none\`;
+    _tGhost._ox = t.clientX - r.left; _tGhost._oy = t.clientY - r.top;
+    document.body.appendChild(_tGhost);
+    _tCard.style.opacity = '0.3';
+  }
+  if (_tDragging && _tGhost) {
+    e.preventDefault();
+    _tGhost.style.left = (t.clientX - _tGhost._ox) + 'px';
+    _tGhost.style.top  = (t.clientY - _tGhost._oy) + 'px';
+    _tGhost.style.display = 'none';
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    _tGhost.style.display = '';
+    const col = el?.closest('.board-col');
+    document.querySelectorAll('.board-col').forEach(c => c.classList.toggle('drag-over', c === col));
+  }
+}
+
+function _boardTouchEnd(e) {
+  if (!_tDragId) return;
+  if (_tDragging && _tGhost) {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    _tGhost.style.display = 'none';
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    _tGhost.style.display = '';
+    const col = el?.closest('.board-col');
+    _tGhost.remove(); _tGhost = null;
+    document.querySelectorAll('.board-col').forEach(c => c.classList.remove('drag-over'));
+    if (_tCard) _tCard.style.opacity = '';
+    if (col) {
+      const status = col.dataset.status;
+      const a = apts.find(x => x.id === _tDragId);
+      if (a && status) { a.status = status; persist(); }
+    }
+    render();
+  }
+  _tDragId = null; _tDragging = false; _tCard = null;
+}
+
+function initBoardDrag() {
+  if (_boardListenersAdded) return;
+  _boardListenersAdded = true;
+  document.addEventListener('touchmove', _boardTouchMove, {passive: false});
+  document.addEventListener('touchend', _boardTouchEnd);
+}
 
 // ── Move sheet (mobile) ───────────────────────────────────────────────────────
 let _moveAptId = null;

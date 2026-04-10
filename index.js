@@ -21,9 +21,9 @@ const APP_HTML = `<!DOCTYPE html>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0f0f0f; --surface: #1a1a1a; --surface2: #242424; --border: #2e2e2e;
-  --text: #f0ece4; --muted: #6b6560; --accent: #e8c547; --accent2: #4a9eff;
-  --red: #ff5f5f; --green: #4ecb7e; --card-bg: #181818;
+  --bg: #f7f5f2; --surface: #ffffff; --surface2: #f0ede8; --border: #e2ddd8;
+  --text: #1a1a1a; --muted: #8a8480; --accent: #b8860b; --accent2: #2563eb;
+  --red: #dc2626; --green: #16a34a; --card-bg: #ffffff;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; overflow: hidden; }
@@ -40,7 +40,7 @@ body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--te
 
 .scroll-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px; padding-bottom: 90px; }
 
-.fab { position: fixed; bottom: 24px; right: 20px; width: 54px; height: 54px; border-radius: 50%; background: var(--accent); color: #0f0f0f; border: none; font-size: 26px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(232,197,71,0.35); cursor: pointer; z-index: 50; transition: transform 0.15s; }
+.fab { position: fixed; bottom: 24px; right: 20px; width: 54px; height: 54px; border-radius: 50%; background: var(--accent); color: #ffffff; border: none; font-size: 26px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(232,197,71,0.35); cursor: pointer; z-index: 50; transition: transform 0.15s; }
 .fab:active { transform: scale(0.92); }
 
 .apt-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 12px; overflow: hidden; cursor: pointer; transition: border-color 0.2s, transform 0.15s; }
@@ -57,9 +57,9 @@ body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--te
 .star { font-size: 14px; color: var(--border); }
 .star.on { color: var(--accent); }
 .status-pill { font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; padding: 3px 9px; border-radius: 20px; }
-.s-active { background: rgba(78,203,126,0.15); color: var(--green); }
-.s-toured { background: rgba(74,158,255,0.15); color: var(--accent2); }
-.s-applying { background: rgba(232,197,71,0.15); color: var(--accent); }
+.s-active { background: rgba(22,163,74,0.12); color: var(--green); }
+.s-toured { background: rgba(37,99,235,0.12); color: var(--accent2); }
+.s-applying { background: rgba(184,134,11,0.12); color: var(--accent); }
 .s-pass { background: var(--surface2); color: var(--muted); }
 
 .empty { text-align: center; padding: 60px 24px; color: var(--muted); }
@@ -70,7 +70,7 @@ body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--te
 .filter-row { display: flex; gap: 8px; margin-bottom: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .filter-row::-webkit-scrollbar { display: none; }
 .fpill { flex-shrink: 0; padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: none; font-family: 'Outfit', sans-serif; font-size: 12px; color: var(--muted); cursor: pointer; transition: all 0.15s; font-weight: 500; }
-.fpill.on { background: var(--accent); color: #0f0f0f; border-color: var(--accent); font-weight: 600; }
+.fpill.on { background: var(--accent); color: #ffffff; border-color: var(--accent); font-weight: 600; }
 
 .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: flex-end; backdrop-filter: blur(4px); }
 .overlay.open { display: flex; }
@@ -108,12 +108,12 @@ select option { background: var(--surface2); }
 .p-thumb { aspect-ratio: 1; border-radius: 8px; overflow: hidden; position: relative; border: 1px solid var(--border); }
 .p-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .p-thumb-del { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; font-size: 11px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-.p-thumb-ann { position: absolute; bottom: 4px; right: 4px; background: rgba(232,197,71,0.9); color: #0f0f0f; border: none; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 700; cursor: pointer; }
+.p-thumb-ann { position: absolute; bottom: 4px; right: 4px; background: var(--accent); color: #ffffff; border: none; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 700; cursor: pointer; }
 
 .btn { display: block; width: 100%; padding: 14px; border-radius: 12px; border: none; font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
 .btn:active { opacity: 0.8; }
 .btn + .btn { margin-top: 10px; }
-.btn-primary { background: var(--accent); color: #0f0f0f; }
+.btn-primary { background: var(--accent); color: #ffffff; }
 .btn-outline { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
 .btn-danger { background: rgba(255,95,95,0.12); color: var(--red); border: 1.5px solid rgba(255,95,95,0.3); }
 
@@ -122,13 +122,13 @@ select option { background: var(--surface2); }
 .ai-box-sub { font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
 .ai-row { display: flex; gap: 8px; }
 .ai-row input { flex: 1; }
-.ai-btn { flex-shrink: 0; padding: 11px 16px; background: var(--accent); color: #0f0f0f; border: none; border-radius: 10px; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; }
+.ai-btn { flex-shrink: 0; padding: 11px 16px; background: var(--accent); color: #ffffff; border: none; border-radius: 10px; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; }
 .ai-btn:disabled { opacity: 0.5; }
 .ai-preview { margin-top: 12px; background: var(--surface2); border-radius: 10px; padding: 14px; border: 1px solid var(--border); }
 .ai-preview-name { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
 .ai-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .ai-badge { font-size: 12px; font-weight: 500; padding: 3px 9px; border-radius: 20px; background: rgba(232,197,71,0.1); color: var(--accent); border: 1px solid rgba(232,197,71,0.2); }
-.ai-apply-btn { width: 100%; padding: 10px; background: var(--accent); color: #0f0f0f; border: none; border-radius: 8px; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 13px; cursor: pointer; }
+.ai-apply-btn { width: 100%; padding: 10px; background: var(--accent); color: #ffffff; border: none; border-radius: 8px; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 13px; cursor: pointer; }
 .ai-status { font-size: 12px; margin-top: 10px; min-height: 16px; color: var(--muted); }
 .ai-status.loading { color: var(--accent2); }
 .ai-status.ok { color: var(--green); }
@@ -170,7 +170,7 @@ select option { background: var(--surface2); }
 .ann-tools { display: flex; gap: 6px; overflow-x: auto; flex: 1; }
 .ann-tools::-webkit-scrollbar { display: none; }
 .atb { flex-shrink: 0; background: var(--surface2); border: 1.5px solid var(--border); color: var(--text); border-radius: 8px; padding: 7px 11px; font-family: 'Outfit', sans-serif; font-size: 12px; cursor: pointer; white-space: nowrap; }
-.atb.on { background: var(--accent); color: #0f0f0f; border-color: var(--accent); }
+.atb.on { background: var(--accent); color: #ffffff; border-color: var(--accent); }
 .ann-canvas-wrap { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #000; position: relative; }
 #ann-canvas { touch-action: none; cursor: crosshair; }
 .ann-footer { background: #111; padding: 10px 14px; display: flex; gap: 10px; align-items: center; flex-shrink: 0; border-top: 1px solid var(--border); }
@@ -310,7 +310,7 @@ select option { background: var(--surface2); }
       <button class="atb" onclick="undoAnn()">↩ Undo</button>
       <button class="atb" onclick="clearAnn()">Clear</button>
     </div>
-    <button class="atb" onclick="saveAnnotation()" style="background:var(--accent);color:#0f0f0f;border-color:var(--accent)">Save</button>
+    <button class="atb" onclick="saveAnnotation()" style="background:var(--accent);color:#ffffff;border-color:var(--accent)">Save</button>
   </div>
   <div class="ann-canvas-wrap" id="ann-wrap">
     <canvas id="ann-canvas"></canvas>

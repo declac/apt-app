@@ -238,6 +238,25 @@ select option { background: var(--surface2); }
 .apt-table tr:hover td { background: var(--surface2); }
 .tbl-toggle { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; font-family: 'Outfit', sans-serif; font-size: 12px; color: var(--muted); cursor: pointer; margin-left: 8px; }
 .tbl-toggle.on { background: var(--accent); color: #ffffff; border-color: var(--accent); }
+/* Kanban board */
+.board-wrap { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 20px; height: calc(100dvh - 120px); -webkit-overflow-scrolling: touch; }
+.board-wrap::-webkit-scrollbar { display: none; }
+.board-col { flex-shrink: 0; width: 220px; display: flex; flex-direction: column; background: var(--surface2); border-radius: 14px; overflow: hidden; }
+.board-col-hd { padding: 12px 14px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+.board-col-count { background: var(--surface); border-radius: 20px; padding: 2px 8px; font-size: 11px; color: var(--muted); font-weight: 600; }
+.board-col-cards { flex: 1; overflow-y: auto; padding: 10px 8px; display: flex; flex-direction: column; gap: 8px; -webkit-overflow-scrolling: touch; }
+.board-col-cards::-webkit-scrollbar { display: none; }
+.board-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; cursor: pointer; transition: border-color 0.15s; }
+.board-card:active { border-color: var(--accent); }
+.board-card.drag-over { border-color: var(--accent); background: var(--surface2); }
+.board-card-name { font-size: 13px; font-weight: 600; line-height: 1.3; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-card-price { font-size: 12px; color: var(--accent); font-weight: 500; }
+.board-card-date { font-size: 11px; color: var(--muted); margin-top: 4px; }
+/* Move sheet */
+.move-sheet-option { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+.move-sheet-option:last-child { border-bottom: none; }
+.move-sheet-option input[type=radio] { width: 18px; height: 18px; accent-color: var(--accent); flex-shrink: 0; }
+.move-date-row { padding: 8px 0 4px 30px; }
 </style>
 </head>
 <body>
@@ -250,7 +269,8 @@ select option { background: var(--surface2); }
   </div>
 </div>
 <nav class="nav">
-  <button class="nav-btn active" onclick="showView('list')">All Units</button>
+  <button class="nav-btn active" onclick="showView('list')">List</button>
+  <button class="nav-btn" onclick="showView('board')">Board</button>
   <button class="nav-btn" onclick="showView('compare')">Compare</button>
   <button class="nav-btn" onclick="showView('shortlist')">Shortlist</button>
 </nav>
@@ -428,6 +448,19 @@ select option { background: var(--surface2); }
   </div>
 </div>
 
+<!-- Move sheet (mobile kanban) -->
+<div class="overlay" id="move-overlay" onclick="maybeClose(event,'move-overlay')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" style="font-size:17px">Move to…</div>
+    <div id="move-sheet-inner"></div>
+    <br>
+    <button class="btn btn-primary" onclick="confirmMove()">Done</button>
+    <button class="btn btn-outline" onclick="closeSheet('move-overlay')">Cancel</button>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
 <script>
 let apts = [];
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -441,7 +474,7 @@ function persist() {
 
 function showView(v) {
   view = v;
-  document.querySelectorAll('.nav-btn').forEach((b,i) => b.classList.toggle('active', ['list','compare','shortlist'][i] === v));
+  document.querySelectorAll('.nav-btn').forEach((b,i) => b.classList.toggle('active', ['list','board','compare','shortlist'][i] === v));
   document.getElementById('fab').style.display = v === 'list' ? 'flex' : 'none';
   render();
 }
@@ -449,6 +482,7 @@ function showView(v) {
 function render() {
   const el = document.getElementById('scroll-area');
   if (view === 'list') el.innerHTML = renderList();
+  else if (view === 'board') { el.innerHTML = renderBoard(); initBoardDrag(); }
   else if (view === 'compare') el.innerHTML = renderCompare();
   else if (view === 'shortlist') el.innerHTML = renderShortlist();
   else if (view === 'detail') el.innerHTML = renderDetail();
@@ -666,6 +700,94 @@ function renderShortlist() {
         \${pros?\`<div style="font-size:12px;color:var(--green);margin-top:8px">\${pros}</div>\`:''}
       </div></div>\`;
     }).join('');
+}
+
+function renderBoard() {
+  const isTouch = 'ontouchstart' in window;
+  const COLS = [
+    { status: 'prospecting',    label: 'Prospecting',    color: 'var(--accent2)' },
+    { status: 'scheduled',      label: 'Scheduled',      color: '#7c3aed' },
+    { status: 'shown-liked',    label: 'Liked',          color: 'var(--green)' },
+    { status: 'shown-disliked', label: 'Disliked',       color: 'var(--red)' },
+    { status: 'applying',       label: 'Applying',       color: 'var(--accent)' },
+  ];
+  const cols = COLS.map(col => {
+    const cards = apts.filter(a => a.status === col.status);
+    const cardHtml = cards.map(a => {
+      const dateStr = a.showDate ? \`📅 \${new Date(a.showDate+\`T12:00:00\`).toLocaleDateString('en-US',{month:'short',day:'numeric'})}\` : '';
+      const drag = isTouch ? '' : \`draggable="true" ondragstart="boardDragStart(event,'\${a.id}')" ondragend="boardDragEnd(event)"\`;
+      const tap = isTouch ? \`onclick="openMoveSheet('\${a.id}')"\` : \`onclick="openDetail('\${a.id}')"\`;
+      return \`<div class="board-card" \${drag} \${tap} data-id="\${a.id}">
+        <div class="board-card-name">\${a.name}</div>
+        <div class="board-card-price">\${a.price||'—'}</div>
+        \${dateStr ? \`<div class="board-card-date">\${dateStr}</div>\` : ''}
+      </div>\`;
+    }).join('') || \`<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px">Empty</div>\`;
+    const dropHandlers = isTouch ? '' : \`ondragover="event.preventDefault()" ondrop="boardDrop(event,'\${col.status}')"\`;
+    return \`<div class="board-col" \${dropHandlers}>
+      <div class="board-col-hd" style="color:\${col.color}">
+        \${col.label}
+        <span class="board-col-count">\${cards.length}</span>
+      </div>
+      <div class="board-col-cards">\${cardHtml}</div>
+    </div>\`;
+  }).join('');
+  return \`<div class="board-wrap">\${cols}</div>\`;
+}
+
+// ── Board drag (desktop) ──────────────────────────────────────────────────────
+let _dragId = null;
+function boardDragStart(e, id) { _dragId = id; e.target.style.opacity = '0.5'; }
+function boardDragEnd(e) { e.target.style.opacity = '1'; _dragId = null; }
+function boardDrop(e, status) {
+  e.preventDefault();
+  if (!_dragId) return;
+  const a = apts.find(x => x.id === _dragId); if (!a) return;
+  a.status = status;
+  persist();
+  render();
+}
+function initBoardDrag() {}
+
+// ── Move sheet (mobile) ───────────────────────────────────────────────────────
+let _moveAptId = null;
+function openMoveSheet(id) {
+  _moveAptId = id;
+  const a = apts.find(x => x.id === id); if (!a) return;
+  const COLS = [
+    { status: 'prospecting', label: 'Prospecting' },
+    { status: 'scheduled',   label: 'Scheduled' },
+    { status: 'shown-liked', label: 'Shown — Liked' },
+    { status: 'shown-disliked', label: 'Shown — Disliked' },
+    { status: 'applying',    label: 'Applying' },
+  ];
+  const options = COLS.map(col => \`
+    <label class="move-sheet-option" onclick="moveSheetSelect('\${col.status}')">
+      <input type="radio" name="move-status" value="\${col.status}" \${a.status===col.status?'checked':''}>
+      <span>\${col.label}</span>
+    </label>
+    \${col.status==='scheduled'?\`<div class="move-date-row" id="move-date-row" style="display:\${a.status==='scheduled'?'block':'none'}"><input type="date" id="move-date-inp" value="\${a.showDate||''}" style="width:auto;padding:6px 10px;font-size:13px"></div>\`:''}
+  \`).join('');
+  document.getElementById('move-sheet-inner').innerHTML = options;
+  document.getElementById('move-overlay').classList.add('open');
+}
+
+function moveSheetSelect(status) {
+  document.getElementById('move-date-row').style.display = status === 'scheduled' ? 'block' : 'none';
+}
+
+function confirmMove() {
+  const a = apts.find(x => x.id === _moveAptId); if (!a) return;
+  const sel = document.querySelector('input[name="move-status"]:checked');
+  if (!sel) return;
+  a.status = sel.value;
+  if (sel.value === 'scheduled') {
+    const d = document.getElementById('move-date-inp')?.value;
+    if (d) a.showDate = d;
+  }
+  persist();
+  document.getElementById('move-overlay').classList.remove('open');
+  render();
 }
 
 async function doSearch() {

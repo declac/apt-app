@@ -1230,6 +1230,71 @@ function removeFormReaction(i) {
   renderFormReactions();
 }
 
+// ── Excel import ──────────────────────────────────────────────────────────────
+let _importPending = [];
+
+function handleImport(e) {
+  const file = e.target.files[0]; if (!file) return;
+  e.target.value = '';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+      _importPending = [];
+      const existing = new Set(apts.map(a => (a.name||'').toLowerCase().trim()));
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const addr = (r[3]||'').toString().trim();
+        const unit = (r[4]||'').toString().trim();
+        if (!addr) continue;
+        const name = unit ? \`\${addr} \${unit}\` : addr;
+        if (existing.has(name.toLowerCase())) continue;
+        const cellRef = XLSX.utils.encode_cell({ r: i, c: 6 });
+        const cell = ws[cellRef];
+        const url = cell?.l?.Target || null;
+        const rawPrice = r[8];
+        const price = rawPrice ? '$' + Math.round(parseFloat(rawPrice)).toLocaleString() : null;
+        let showDate = null;
+        if (r[1]) { const d = new Date(r[1]); if (!isNaN(d.getTime())) showDate = d.toISOString().slice(0, 10); }
+        _importPending.push({
+          id: String(Date.now() + i),
+          name,
+          neighborhood: (r[2]||'').toString().trim() || null,
+          price,
+          maint: r[9] != null ? String(r[9]).trim() : null,
+          retax: r[10] != null ? String(r[10]).trim() : null,
+          totalMonthly: r[11] != null ? '$' + parseFloat(r[11]).toLocaleString() : null,
+          btype: (r[12]||'').toString().trim() || null,
+          notes: r[13] ? \`Service: \${String(r[13]).trim()}\` : null,
+          bldg: (r[14]||'').toString().trim() || null,
+          url, showDate,
+          status: showDate ? 'scheduled' : 'prospecting',
+          rating: 0,
+          amenities: {doorman:false,elevator:false,laundry:false,outdoor:false,gym:false,parking:false,pets:false,storage:false,roof:false,bldry:false,fp:false,ac:false},
+          reactions: [], photos: [],
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      const skipped = rows.length - 1 - _importPending.length;
+      document.getElementById('import-preview-msg').innerHTML =
+        \`Found <strong>\${_importPending.length}</strong> new listing\${_importPending.length !== 1 ? 's' : ''} to import.<br>\` +
+        (skipped > 0 ? \`<span style="color:var(--muted)">\${skipped} already exist or are empty — will be skipped.</span>\` : '');
+      document.getElementById('import-overlay').classList.add('open');
+    } catch(err) { alert('Could not read file: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function confirmImport() {
+  apts = [...apts, ..._importPending];
+  _importPending = [];
+  persist();
+  closeSheet('import-overlay');
+  showView('list');
+}
+
 fetch('/apts').then(r=>r.json()).then(data=>{
   apts = Array.isArray(data) ? data : [];
   const STATUS_MAP = { active: 'prospecting', toured: 'shown-liked', pass: 'shown-disliked' };
@@ -1248,88 +1313,6 @@ fetch('/apts').then(r=>r.json()).then(data=>{
   });
   if (migrated) persist();
   render();
-
-// ── Excel import ──────────────────────────────────────────────────────────────
-let _importPending = [];
-
-function handleImport(e) {
-  const file = e.target.files[0]; if (!file) return;
-  e.target.value = '';
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const wb = XLSX.read(ev.target.result, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-      _importPending = [];
-      const existing = new Set(apts.map(a => (a.name||'').toLowerCase().trim()));
-
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i];
-        const addr = (r[3]||'').toString().trim();
-        const unit = (r[4]||'').toString().trim();
-        if (!addr) continue;
-        const name = unit ? \`\${addr} \${unit}\` : addr;
-        if (existing.has(name.toLowerCase())) continue;
-
-        // Extract hyperlink URL from SheetJS cell
-        const cellRef = XLSX.utils.encode_cell({ r: i, c: 6 });
-        const cell = ws[cellRef];
-        const url = cell?.l?.Target || null;
-
-        // Format price
-        const rawPrice = r[8];
-        const price = rawPrice ? '$' + Math.round(parseFloat(rawPrice)).toLocaleString() : null;
-
-        // Format date
-        let showDate = null;
-        if (r[1]) {
-          const d = new Date(r[1]);
-          if (!isNaN(d.getTime())) showDate = d.toISOString().slice(0, 10);
-        }
-
-        _importPending.push({
-          id: String(Date.now() + i),
-          name,
-          neighborhood: (r[2]||'').toString().trim() || null,
-          price,
-          maint: r[9] != null ? String(r[9]).trim() : null,
-          retax: r[10] != null ? String(r[10]).trim() : null,
-          totalMonthly: r[11] != null ? '$' + parseFloat(r[11]).toLocaleString() : null,
-          btype: (r[12]||'').toString().trim() || null,
-          notes: r[13] ? \`Service: \${String(r[13]).trim()}\` : null,
-          bldg: (r[14]||'').toString().trim() || null,
-          url,
-          showDate,
-          status: showDate ? 'scheduled' : 'prospecting',
-          rating: 0,
-          amenities: {doorman:false,elevator:false,laundry:false,outdoor:false,gym:false,parking:false,pets:false,storage:false,roof:false,bldry:false,fp:false,ac:false},
-          reactions: [],
-          photos: [],
-          updatedAt: new Date().toISOString(),
-        });
-      }
-
-      const skipped = rows.length - 1 - _importPending.length;
-      document.getElementById('import-preview-msg').innerHTML =
-        \`Found <strong>\${_importPending.length}</strong> new listing\${_importPending.length !== 1 ? 's' : ''} to import.<br>\` +
-        (skipped > 0 ? \`<span style="color:var(--muted)">\${skipped} already exist or are empty — will be skipped.</span>\` : '');
-      document.getElementById('import-overlay').classList.add('open');
-    } catch(err) {
-      alert('Could not read file: ' + err.message);
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function confirmImport() {
-  apts = [...apts, ..._importPending];
-  _importPending = [];
-  persist();
-  closeSheet('import-overlay');
-  showView('list');
-}
-
 }).catch(()=>{ render(); });
 </script>
 </body>

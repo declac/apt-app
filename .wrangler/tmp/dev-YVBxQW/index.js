@@ -283,6 +283,7 @@ select option { background: var(--surface2); }
 .move-date-row { padding: 8px 0 4px 30px; }
 </style>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"><\/script>
 </head>
 <body>
 
@@ -293,6 +294,7 @@ select option { background: var(--surface2); }
     <button class="tbl-toggle" id="tbl-tog" onclick="toggleTableView()">\u2630</button>
     <button class="tbl-toggle" onclick="document.getElementById('import-inp').click()" title="Import Excel">\u2191 Import</button>
     <input type="file" id="import-inp" accept=".xlsx,.xls" style="display:none" onchange="handleImport(event)">
+    <button class="tbl-toggle" onclick="handleExport()" title="Export to Excel + Photos">\u2193 Export</button>
   </div>
 </div>
 <nav class="nav">
@@ -506,6 +508,7 @@ let apts = [];
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 let view = 'list', prevView = 'list', editId = null, pendingPhotos = [], rating = 0, filterSt = 'all', lastParsed = null;
 let tableView = false, tableSort = { col: null, dir: 'asc' };
+let boardSort = 'name';
 
 function persist() {
   document.getElementById('hdr-count').textContent = apts.length + ' unit' + (apts.length !== 1 ? 's' : '');
@@ -568,11 +571,12 @@ function renderTable() {
   if (tableSort.col) {
     filtered.sort((a, b) => {
       let va, vb;
-      if (tableSort.col === 'price') { va = parseFloat((a.price||'').replace(/[^0-9.]/g,'')||0); vb = parseFloat((b.price||'').replace(/[^0-9.]/g,'')||0); }
-      else if (tableSort.col === 'total') { va = parseFloat((a.totalMonthly||'').replace(/[^0-9.]/g,'')||0); vb = parseFloat((b.totalMonthly||'').replace(/[^0-9.]/g,'')||0); }
-      else if (tableSort.col === 'date') { va = a.showDate||''; vb = b.showDate||''; }
+      if (tableSort.col === 'price') { va = parseFloat((a.price||'').replace(/[^0-9.]/g,'')||0); vb = parseFloat((b.price||'').replace(/[^0-9.]/g,'')||0); return tableSort.dir==='asc'?va-vb:vb-va; }
+      if (tableSort.col === 'total') { va = parseFloat((a.totalMonthly||'').replace(/[^0-9.]/g,'')||0); vb = parseFloat((b.totalMonthly||'').replace(/[^0-9.]/g,'')||0); return tableSort.dir==='asc'?va-vb:vb-va; }
+      if (tableSort.col === 'rating') { return tableSort.dir==='asc'?(a.rating||0)-(b.rating||0):(b.rating||0)-(a.rating||0); }
+      if (tableSort.col === 'date') { va = a.showDate||''; vb = b.showDate||''; }
       else if (tableSort.col === 'status') { va = a.status||''; vb = b.status||''; }
-      else { va = (a.name||'').toLowerCase(); vb = (b.name||'').toLowerCase(); }
+      else { return (tableSort.dir==='asc'?1:-1) * (a.name||'').localeCompare(b.name||'', undefined, {numeric:true, sensitivity:'base'}); }
       if (va < vb) return tableSort.dir === 'asc' ? -1 : 1;
       if (va > vb) return tableSort.dir === 'asc' ? 1 : -1;
       return 0;
@@ -591,6 +595,7 @@ function renderTable() {
     const sc = {prospecting:'s-prospecting',scheduled:'s-scheduled','shown-liked':'s-shown-liked','shown-disliked':'s-shown-disliked',applying:'s-applying'}[a.status]||'s-prospecting';
     const dateStr = a.showDate ? new Date(a.showDate+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '\u2014';
     const label = {prospecting:'Prospect',scheduled:'Scheduled','shown-liked':'Liked','shown-disliked':'Disliked',applying:'Applying'}[a.status]||a.status;
+    const stars = '\u2605'.repeat(a.rating||0) + '\u2606'.repeat(5-(a.rating||0));
     return \`<tr onclick="openDetail('\${a.id}')">
       <td>\${esc(a.name)}</td>
       <td>\${esc(a.price||'\u2014')}</td>
@@ -598,12 +603,13 @@ function renderTable() {
       <td>\${esc(a.btype||'\u2014')}</td>
       <td>\${esc(a.neighborhood||'\u2014')}</td>
       <td>\${dateStr}</td>
+      <td style="font-size:11px;letter-spacing:-1px;color:var(--accent)">\${stars}</td>
       <td><span class="status-pill \${sc}">\${label}</span></td>
     </tr>\`;
   }).join('');
 
   return pills + \`<div class="tbl-wrap"><table class="apt-table">
-    <thead><tr>\${th('Address','name')}\${th('Price','price')}\${th('Total /mo','total')}<th>Type</th><th>Neighborhood</th>\${th('Show Date','date')}\${th('Status','status')}</tr></thead>
+    <thead><tr>\${th('Address','name')}\${th('Price','price')}\${th('Total /mo','total')}<th>Type</th><th>Neighborhood</th>\${th('Show Date','date')}\${th('\u2605','rating')}\${th('Status','status')}</tr></thead>
     <tbody>\${rows}</tbody>
   </table></div>\`;
 }
@@ -742,7 +748,14 @@ function renderShortlist() {
     }).join('');
 }
 
+function setBoardSort(s) { boardSort = s; render(); }
+
 function renderBoard() {
+  const sortControl = \`<div style="display:flex;align-items:center;gap:8px;padding:8px 0 12px;flex-shrink:0">
+    <span style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Sort</span>
+    \${[['name','Unit'],['price','Price'],['date','Date'],['rating','\u2605']].map(([v,l])=>\`<button style="padding:4px 10px;border-radius:20px;border:1px solid \${boardSort===v?'var(--accent)':'var(--border)'};background:\${boardSort===v?'var(--accent)':'none'};color:\${boardSort===v?'#fff':'var(--muted)'};font-family:Outfit,sans-serif;font-size:12px;cursor:pointer" onclick="setBoardSort('\${v}')">\${l}</button>\`).join('')}
+  </div>\`;
+
   const COLS = [
     { status: 'prospecting',    label: 'Prospecting',    color: 'var(--accent2)' },
     { status: 'scheduled',      label: 'Scheduled',      color: '#7c3aed' },
@@ -750,8 +763,14 @@ function renderBoard() {
     { status: 'shown-disliked', label: 'Disliked',       color: 'var(--red)' },
     { status: 'applying',       label: 'Applying',       color: 'var(--accent)' },
   ];
+  const sortCards = cards => [...cards].sort((a,b) => {
+    if (boardSort === 'price') return parseFloat((a.price||'').replace(/[^0-9.]/g,'')||0) - parseFloat((b.price||'').replace(/[^0-9.]/g,'')||0);
+    if (boardSort === 'date')  return (a.showDate||'').localeCompare(b.showDate||'');
+    if (boardSort === 'rating') return (b.rating||0) - (a.rating||0);
+    return (a.name||'').localeCompare(b.name||'', undefined, {numeric:true, sensitivity:'base'});
+  });
   const cols = COLS.map(col => {
-    const cards = apts.filter(a => a.status === col.status);
+    const cards = sortCards(apts.filter(a => a.status === col.status));
     const cardHtml = cards.map(a => {
       const dateStr = a.showDate ? \`\u{1F4C5} \${new Date(a.showDate+\`T12:00:00\`).toLocaleDateString('en-US',{month:'short',day:'numeric'})}\` : '';
       return \`<div class="board-card" draggable="true" ondragstart="boardDragStart(event,'\${a.id}')" ondragend="boardDragEnd(event)" ontouchstart="boardTouchStart(event,'\${a.id}')" onclick="openDetail('\${a.id}')" data-id="\${a.id}">
@@ -769,7 +788,7 @@ function renderBoard() {
       <div class="board-col-cards">\${cardHtml}</div>
     </div>\`;
   }).join('');
-  return \`<div class="board-wrap">\${cols}</div>\`;
+  return sortControl + \`<div class="board-wrap">\${cols}</div>\`;
 }
 
 // \u2500\u2500 Board drag (desktop mouse) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -1254,6 +1273,123 @@ function removeFormReaction(i) {
   renderFormReactions();
 }
 
+// \u2500\u2500 Excel import \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+let _importPending = [];
+
+function handleImport(e) {
+  const file = e.target.files[0]; if (!file) return;
+  e.target.value = '';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+      _importPending = [];
+      const existing = new Set(apts.map(a => (a.name||'').toLowerCase().trim()));
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const addr = (r[3]||'').toString().trim();
+        const unit = (r[4]||'').toString().trim();
+        if (!addr) continue;
+        const name = unit ? \`\${addr} \${unit}\` : addr;
+        if (existing.has(name.toLowerCase())) continue;
+        const cellRef = XLSX.utils.encode_cell({ r: i, c: 6 });
+        const cell = ws[cellRef];
+        const url = cell?.l?.Target || null;
+        const rawPrice = r[8];
+        const price = rawPrice ? '$' + Math.round(parseFloat(rawPrice)).toLocaleString() : null;
+        let showDate = null;
+        if (r[1]) { const d = new Date(r[1]); if (!isNaN(d.getTime())) showDate = d.toISOString().slice(0, 10); }
+        _importPending.push({
+          id: String(Date.now() + i),
+          name,
+          neighborhood: (r[2]||'').toString().trim() || null,
+          price,
+          maint: r[9] != null ? String(r[9]).trim() : null,
+          retax: r[10] != null ? String(r[10]).trim() : null,
+          totalMonthly: r[11] != null ? '$' + parseFloat(r[11]).toLocaleString() : null,
+          btype: (r[12]||'').toString().trim() || null,
+          notes: r[13] ? \`Service: \${String(r[13]).trim()}\` : null,
+          bldg: (r[14]||'').toString().trim() || null,
+          url, showDate,
+          status: showDate ? 'scheduled' : 'prospecting',
+          rating: 0,
+          amenities: {doorman:false,elevator:false,laundry:false,outdoor:false,gym:false,parking:false,pets:false,storage:false,roof:false,bldry:false,fp:false,ac:false},
+          reactions: [], photos: [],
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      const skipped = rows.length - 1 - _importPending.length;
+      document.getElementById('import-preview-msg').innerHTML =
+        \`Found <strong>\${_importPending.length}</strong> new listing\${_importPending.length !== 1 ? 's' : ''} to import.<br>\` +
+        (skipped > 0 ? \`<span style="color:var(--muted)">\${skipped} already exist or are empty \u2014 will be skipped.</span>\` : '');
+      document.getElementById('import-overlay').classList.add('open');
+    } catch(err) { alert('Could not read file: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function confirmImport() {
+  apts = [...apts, ..._importPending];
+  _importPending = [];
+  persist();
+  closeSheet('import-overlay');
+  showView('list');
+}
+
+// \u2500\u2500 Excel + photos export \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+function handleExport() {
+  if (!apts.length) { alert('No apartments to export.'); return; }
+
+  const headers = ['Name','Neighborhood','Price','Status','Show Date','RE Tax /mo','Total /mo','Type','Building','URL','Rating','Pros','Cons','Notes','Photo Count'];
+  const rows = apts.map(a => {
+    const pros = (a.reactions||[]).filter(r=>r.type==='pro').map(r=>r.text).join('; ');
+    const cons = (a.reactions||[]).filter(r=>r.type==='con').map(r=>r.text).join('; ');
+    return [a.name||'', a.neighborhood||'', a.price||'', a.status||'', a.showDate||'',
+      a.retax||'', a.totalMonthly||'', a.btype||'', a.bldg||'', a.url||'',
+      a.rating||0, pros, cons, a.notes||'', (a.photos||[]).length];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = [22,16,10,14,12,10,10,10,16,30,6,30,30,30,8].map(w=>({wch:w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Apartments');
+  const xlsxBuf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+
+  const hasPhotos = apts.some(a => (a.photos||[]).length > 0);
+  if (!hasPhotos) {
+    const blob = new Blob([xlsxBuf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob); link.download = 'apartments.xlsx'; link.click();
+    return;
+  }
+
+  const zip = new JSZip();
+  zip.file('apartments.xlsx', xlsxBuf);
+  const photosFolder = zip.folder('photos');
+  apts.forEach(apt => {
+    if (!(apt.photos||[]).length) return;
+    const folderName = (apt.name||apt.id).replace(/[^a-zA-Z0-9 _-]/g,'').trim().slice(0,40)||apt.id;
+    const aptDir = photosFolder.folder(folderName);
+    apt.photos.forEach((p, i) => {
+      const dataURL = p.annotation || p.data; if (!dataURL) return;
+      const comma = dataURL.indexOf(','); if (comma < 0) return;
+      const meta = dataURL.slice(0, comma), b64 = dataURL.slice(comma + 1);
+      const ext = meta.includes('png') ? 'png' : 'jpg';
+      const bin = atob(b64);
+      const buf = new Uint8Array(bin.length);
+      for (let j = 0; j < bin.length; j++) buf[j] = bin.charCodeAt(j);
+      aptDir.file(\`photo-\${i+1}.\${ext}\`, buf);
+    });
+  });
+
+  zip.generateAsync({type:'blob'}).then(blob => {
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob); link.download = 'apartments-export.zip'; link.click();
+  });
+}
+
 fetch('/apts').then(r=>r.json()).then(data=>{
   apts = Array.isArray(data) ? data : [];
   const STATUS_MAP = { active: 'prospecting', toured: 'shown-liked', pass: 'shown-disliked' };
@@ -1272,88 +1408,6 @@ fetch('/apts').then(r=>r.json()).then(data=>{
   });
   if (migrated) persist();
   render();
-
-// \u2500\u2500 Excel import \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-let _importPending = [];
-
-function handleImport(e) {
-  const file = e.target.files[0]; if (!file) return;
-  e.target.value = '';
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const wb = XLSX.read(ev.target.result, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-      _importPending = [];
-      const existing = new Set(apts.map(a => (a.name||'').toLowerCase().trim()));
-
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i];
-        const addr = (r[3]||'').toString().trim();
-        const unit = (r[4]||'').toString().trim();
-        if (!addr) continue;
-        const name = unit ? \`\${addr} \${unit}\` : addr;
-        if (existing.has(name.toLowerCase())) continue;
-
-        // Extract hyperlink URL from SheetJS cell
-        const cellRef = XLSX.utils.encode_cell({ r: i, c: 6 });
-        const cell = ws[cellRef];
-        const url = cell?.l?.Target || null;
-
-        // Format price
-        const rawPrice = r[8];
-        const price = rawPrice ? '$' + Math.round(parseFloat(rawPrice)).toLocaleString() : null;
-
-        // Format date
-        let showDate = null;
-        if (r[1]) {
-          const d = new Date(r[1]);
-          if (!isNaN(d.getTime())) showDate = d.toISOString().slice(0, 10);
-        }
-
-        _importPending.push({
-          id: String(Date.now() + i),
-          name,
-          neighborhood: (r[2]||'').toString().trim() || null,
-          price,
-          maint: r[9] != null ? String(r[9]).trim() : null,
-          retax: r[10] != null ? String(r[10]).trim() : null,
-          totalMonthly: r[11] != null ? '$' + parseFloat(r[11]).toLocaleString() : null,
-          btype: (r[12]||'').toString().trim() || null,
-          notes: r[13] ? \`Service: \${String(r[13]).trim()}\` : null,
-          bldg: (r[14]||'').toString().trim() || null,
-          url,
-          showDate,
-          status: showDate ? 'scheduled' : 'prospecting',
-          rating: 0,
-          amenities: {doorman:false,elevator:false,laundry:false,outdoor:false,gym:false,parking:false,pets:false,storage:false,roof:false,bldry:false,fp:false,ac:false},
-          reactions: [],
-          photos: [],
-          updatedAt: new Date().toISOString(),
-        });
-      }
-
-      const skipped = rows.length - 1 - _importPending.length;
-      document.getElementById('import-preview-msg').innerHTML =
-        \`Found <strong>\${_importPending.length}</strong> new listing\${_importPending.length !== 1 ? 's' : ''} to import.<br>\` +
-        (skipped > 0 ? \`<span style="color:var(--muted)">\${skipped} already exist or are empty \u2014 will be skipped.</span>\` : '');
-      document.getElementById('import-overlay').classList.add('open');
-    } catch(err) {
-      alert('Could not read file: ' + err.message);
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function confirmImport() {
-  apts = [...apts, ..._importPending];
-  _importPending = [];
-  persist();
-  closeSheet('import-overlay');
-  showView('list');
-}
-
 }).catch(()=>{ render(); });
 <\/script>
 </body>
